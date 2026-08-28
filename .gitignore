@@ -1,0 +1,11 @@
+﻿__pycache__/
+*.py[cod]
+*$py.class
+*.spec
+*.zip
+build/
+dist/
+user_data/
+find_recents.py
+test*.py
+tmp*

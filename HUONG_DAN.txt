@@ -1,0 +1,40 @@
+﻿===============================================================================
+       BỘ CÔNG CỤ TỔNG HỢP FANPAGE & MEDIA - ALL-IN-ONE MASTER GUI (Ổ E:\)
+===============================================================================
+
+1. GIỚI THIỆU:
+   Phần mềm tích hợp toàn bộ các công cụ bạn đang sử dụng vào trong một cửa sổ 
+   làm việc duy nhất, hoàn toàn không cần mở thêm các cửa sổ console hay popup phụ.
+
+2. CÁC CÔNG CỤ TÍCH HỢP TRONG GIAO DIỆN:
+   - 📊 Tab 1: Tạo File Excel Fanpage Reels:
+       + Nhập từ file TXT hoặc nhập trực tiếp.
+       + Khớp kho video và link bài đăng, chống trùng lặp video đã dùng.
+       + Xuất file Excel chuẩn Fanpage Reels và file các page chưa đăng.
+   
+   - ⚡ Tab 2: AI Faster-Whisper Video to SRT:
+       + Nạp model Whisper (large-v3-turbo, large-v3, medium, small, ...).
+       + Chạy trực tiếp 100% trên GPU NVIDIA CUDA (RTX 3060) siêu tốc.
+       + Lọc Dynamic Audio Normalizer (DynAudNorm) kích âm thanh giọng nhỏ.
+       + Lọc khoảng lặng VAD và gom câu thông minh chuẩn video ngắn (Reels/TikTok).
+       + Hỗ trợ quét 1 video đơn lẻ hoặc toàn bộ thư mục video hàng loạt.
+
+   - 📝 Tab 3: Trích Xuất Tiêu Đề (Title.txt):
+       + Quét nhanh kho chứa các folder con video.
+       + Đọc file link-da-dung.txt / link-da-dang.txt và tạo file title.txt trực tiếp.
+
+   - 🔗 Tab 4: Rút Gọn Link ShiftLink:
+       + Đọc file Excel, tự động nhận diện cột link và danh sách sheet.
+       + Tạo slug thông minh (15-21 ký tự), tự động cache link trùng.
+       + Tự động hóa qua trình duyệt Chrome có lưu phiên đăng nhập trong user_data.
+
+   - ⚙️ Tab 5: Cài Đặt Hệ Thống & Kiểm Tra GPU:
+       + Kiểm tra trạng thái GPU CUDA, VRAM, FFmpeg.
+       + Phím tắt mở nhanh thư mục ổ E:\ và ổ D:\.
+
+3. HƯỚNG DẪN SỬ DỤNG:
+   - Cách 1: Double-click vào file "run_app.bat" để mở ngay giao diện.
+   - Cách 2: Chạy lệnh "python app.py" từ Command Prompt hoặc PowerShell.
+   - Cách 3: Double-click "build_exe.bat" để đóng gói thành file .exe độc lập.
+
+===============================================================================
