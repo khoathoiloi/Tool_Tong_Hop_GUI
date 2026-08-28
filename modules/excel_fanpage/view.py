@@ -52,15 +52,25 @@ class ExcelFanpageView(ttk.Frame):
         header = tk.Frame(self, bg="#1e1e2e", pady=6)
         header.pack(fill=tk.X)
         tk.Label(header, text="📊 TẠO FILE EXCEL FANPAGE REELS + TỰ ĐỘNG RÚT GỌN LINK", font=("Segoe UI", 13, "bold"), bg="#1e1e2e", fg="#89b4fa").pack(side=tk.LEFT, padx=10)
-        tk.Label(header, text="Ghép video, tự động rút gọn link gán trực tiếp vào cột Bình luận đầu tiên", font=("Segoe UI", 9), bg="#1e1e2e", fg="#a6adc8").pack(side=tk.LEFT, padx=5)
+        tk.Label(header, text="Hỗ trợ File Excel Thường (11 cột) và File Token (12 cột có UID), tích hợp rút gọn link", font=("Segoe UI", 9), bg="#1e1e2e", fg="#a6adc8").pack(side=tk.LEFT, padx=5)
 
         content = tk.Frame(self, bg="#1e1e2e", padx=10, pady=4)
         content.pack(fill=tk.BOTH, expand=True)
 
-        # 1. Box Fanpage FB
-        grp_page = tk.LabelFrame(content, text=" 1. Danh sách Fanpage Facebook ", font=("Segoe UI", 9, "bold"), bg="#24273a", fg="#cdd6f4", padx=8, pady=5)
+        # 1. Box Fanpage FB & Loại File Excel
+        grp_page = tk.LabelFrame(content, text=" 1. Danh sách Fanpage Facebook & Định Dạng File Xuất ", font=("Segoe UI", 9, "bold"), bg="#24273a", fg="#cdd6f4", padx=8, pady=5)
         grp_page.pack(fill=tk.X, pady=(0, 5))
 
+        # Chọn loại file Excel (11 cột vs 12 cột Token)
+        r_type = tk.Frame(grp_page, bg="#24273a")
+        r_type.pack(fill=tk.X, pady=(0, 4))
+        tk.Label(r_type, text="Định dạng xuất:", width=18, anchor="w", font=("Segoe UI", 9, "bold"), bg="#24273a", fg="#cba6f7").pack(side=tk.LEFT)
+        
+        self.excel_type_var = tk.StringVar(value="token")
+        tk.Radiobutton(r_type, text="File Excel Token (12 cột có UID)", variable=self.excel_type_var, value="token", font=("Segoe UI", 9, "bold"), bg="#24273a", fg="#a6e3a1", selectcolor="#313244", activebackground="#24273a", activeforeground="#a6e3a1").pack(side=tk.LEFT, padx=(0, 15))
+        tk.Radiobutton(r_type, text="File Excel Thường (11 cột)", variable=self.excel_type_var, value="standard", bg="#24273a", fg="#cdd6f4", selectcolor="#313244", activebackground="#24273a", activeforeground="#89b4fa").pack(side=tk.LEFT)
+
+        # Chế độ nhập liệu Page
         self.input_mode_var = tk.StringVar(value="txt")
         mode_bar = tk.Frame(grp_page, bg="#24273a")
         mode_bar.pack(fill=tk.X, pady=(0, 4))
@@ -251,6 +261,7 @@ class ExcelFanpageView(ttk.Frame):
             "tag": self.entry_tag.get().strip(),
             "ratio": self.spin_ratio.get(),
             "txt": self.entry_txt_path.get().strip(),
+            "excel_type": self.excel_type_var.get(),
             "auto_shorten": self.chk_auto_shorten_var.get(),
             "shorten_domain": self.cbo_shorten_domain.get().strip()
         })
@@ -266,6 +277,7 @@ class ExcelFanpageView(ttk.Frame):
             if data.get("tag"): self.entry_tag.insert(0, data.get("tag"))
             if data.get("ratio"): self.spin_ratio.delete(0, tk.END); self.spin_ratio.insert(0, str(data.get("ratio")))
             if data.get("txt"): self.entry_txt_path.insert(0, data.get("txt"))
+            if data.get("excel_type"): self.excel_type_var.set(data.get("excel_type"))
             if "auto_shorten" in data: self.chk_auto_shorten_var.set(bool(data.get("auto_shorten")))
             if data.get("shorten_domain") and data.get("shorten_domain") in self.domains_list:
                 self.cbo_shorten_domain.set(data.get("shorten_domain"))
@@ -273,6 +285,10 @@ class ExcelFanpageView(ttk.Frame):
     def _check_data(self):
         self.logger.clear()
         self.logger.info("--- BẮT ĐẦU KIỂM TRA DỮ LIỆU ---")
+        
+        excel_type_name = "File Excel Token (12 cột có UID)" if self.excel_type_var.get() == "token" else "File Excel Thường (11 cột)"
+        self.logger.highlight(f"📋 Định dạng file chọn xuất: {excel_type_name}")
+
         pages = self._get_pages()
         if pages is None: return
         self.logger.info(f"Số lượng Page hợp lệ: {len(pages)}")
@@ -295,7 +311,6 @@ class ExcelFanpageView(ttk.Frame):
         needed_videos = (len(pages) + ratio - 1) // ratio
         self.logger.info(f"Cần {needed_videos} video cho {len(pages)} Page (Tỉ lệ 1 video / {ratio} Page).")
         
-        # Đếm link gốc
         raw_links_count = sum(1 for item in items[:needed_videos] if item.get("raw_link"))
         self.logger.info(f"Số video có sẵn link gốc cần rút gọn: {raw_links_count} / {min(len(items), needed_videos)}")
 
@@ -326,6 +341,10 @@ class ExcelFanpageView(ttk.Frame):
             ratio = int(self.spin_ratio.get())
         except Exception:
             ratio = 2
+
+        excel_type = self.excel_type_var.get()
+        excel_type_label = "File Excel Token (12 cột có UID)" if excel_type == "token" else "File Excel Thường (11 cột)"
+        self.logger.highlight(f"📋 Định dạng file xuất: {excel_type_label}")
 
         auto_shorten = self.chk_auto_shorten_var.get()
         shorten_domain = self.cbo_shorten_domain.get().strip() or "nextpart2.online"
@@ -373,7 +392,6 @@ class ExcelFanpageView(ttk.Frame):
                             stop_check_cb=_stop_check
                         )
 
-                        # Gán link rút gọn thẳng vào first_comment
                         shortened_applied = 0
                         for it in selected_items:
                             orig_link = it.get("raw_link", "")
@@ -386,25 +404,33 @@ class ExcelFanpageView(ttk.Frame):
                     else:
                         self.logger.warning("Các folder video không có dòng link gốc trong link-da-dang.txt để rút gọn.")
 
-                # Xuất file Excel
+                # Xuất file Excel với đúng định dạng (11 cột hoặc 12 cột)
                 def _prog(cur, total, msg):
                     pct = int(cur / total * 40) + 60
                     self.progress["value"] = pct
                     self.logger.info(msg)
 
-                result = export_excel_file(selected_items, pages, ratio, kho, out, _prog)
+                result = export_excel_file(
+                    valid_items=selected_items,
+                    pages=pages,
+                    pages_per_video=ratio,
+                    kho_path_str=kho,
+                    output_dir_str=out,
+                    progress_cb=_prog,
+                    excel_type=excel_type
+                )
                 
                 if self.chk_avoid_dup_var.get() and result["used_folders"]:
                     self.cfg_mgr.add_processed_folders(result["used_folders"])
 
                 self.progress["value"] = 100
                 self.logger.success("🎉 ĐÃ XUẤT FILE EXCEL THÀNH CÔNG!")
-                self.logger.highlight(f"📁 File Excel: {result['excel_path']}")
+                self.logger.highlight(f"📁 File Excel: {result['excel_path']} ({excel_type_label})")
                 self.logger.success(f"✅ Đã xử lý: {result['total_pages_done']} Page ({result['total_videos_used']} video)")
                 if result["total_pages_left"] > 0:
                     self.logger.warning(f"⚠️ Page chưa ghép (do thiếu video): {result['total_pages_left']} (Lưu tại: {result['unused_file']})")
 
-                messagebox.showinfo("Thành công", f"ĐÃ TẠO FILE EXCEL VÀ RÚT GỌN LINK THÀNH CÔNG!\n\n📁 File Excel:\n{result['excel_path']}\n\n✅ Đã xử lý: {result['total_pages_done']} Page.")
+                messagebox.showinfo("Thành công", f"ĐÃ TẠO FILE EXCEL VÀ RÚT GỌN LINK THÀNH CÔNG!\n\n📁 File Excel:\n{result['excel_path']}\n\n📋 Loại: {excel_type_label}\n✅ Đã xử lý: {result['total_pages_done']} Page.")
             except Exception as e:
                 self.logger.error(f"Lỗi trong quá trình xử lý: {e}")
                 messagebox.showerror("Lỗi", f"Lỗi: {e}")

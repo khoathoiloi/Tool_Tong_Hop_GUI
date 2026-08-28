@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 from datetime import datetime
 from pathlib import Path
 import openpyxl
 
-def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_dir_str, progress_cb=None):
+def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_dir_str, progress_cb=None, excel_type="standard"):
     kho_path = Path(kho_path_str)
     output_dir = Path(output_dir_str)
     total_valid_videos = len(valid_items)
@@ -20,59 +20,112 @@ def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_
         used_folders.append(current_video['folder_path'])
         
         for p in group_pages:
-            excel_rows.append({
-                'stt': stt,
-                'page_name': p,
-                'platform': 'Facebook',
-                'post_type': 'Reel',
-                'caption': current_video['caption'],
-                'video_path': current_video['video_path'],
-                'first_comment': current_video['first_comment'],
-                'post_date': None,
-                'post_time': None,
-                'timezone': None,
-                'action': 'post_now'
-            })
+            if excel_type == "token":
+                if isinstance(p, dict):
+                    p_name = p.get('page_name', '')
+                    uid_val = p.get('uid', '')
+                else:
+                    p_str = str(p).strip()
+                    # Nếu có dấu | phân tách tên và UID
+                    if '|' in p_str:
+                        parts = p_str.split('|', 1)
+                        p_name = parts[0].strip()
+                        uid_val = parts[1].strip()
+                    else:
+                        p_name = p_str
+                        uid_val = p_str
+
+                excel_rows.append({
+                    'stt': stt,
+                    'page_name': p_name,
+                    'uid': uid_val,
+                    'platform': 'Facebook',
+                    'post_type': 'Reel',
+                    'caption': current_video['caption'],
+                    'video_path': current_video['video_path'],
+                    'first_comment': current_video['first_comment'],
+                    'post_date': None,
+                    'post_time': None,
+                    'timezone': None,
+                    'action': 'post_now'
+                })
+            else:
+                p_name = p.get('page_name', '') if isinstance(p, dict) else str(p).strip()
+                excel_rows.append({
+                    'stt': stt,
+                    'page_name': p_name,
+                    'platform': 'Facebook',
+                    'post_type': 'Reel',
+                    'caption': current_video['caption'],
+                    'video_path': current_video['video_path'],
+                    'first_comment': current_video['first_comment'],
+                    'post_date': None,
+                    'post_time': None,
+                    'timezone': None,
+                    'action': 'post_now'
+                })
 
         page_idx += len(group_pages)
         video_idx += 1
         stt += 1
         if progress_cb:
-            progress_cb(page_idx, len(pages), 'Đã ghép ' + str(page_idx) + '/' + str(len(pages)) + ' Page...')
+            progress_cb(page_idx, len(pages), f"Đã ghép {page_idx}/{len(pages)} Page...")
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = 'BaiDang'
+    ws.title = "BaiDang"
 
-    headers = [
-        'STT', 'Trang', 'Nền tảng', 'Loại bài', 'Nội dung',
-        'URL video/ảnh', 'Bình luận đầu tiên', 'Ngày đăng (YYYY-MM-DD)',
-        'Giờ đăng (HH:mm)', 'Múi giờ', 'Hành động'
-    ]
-
-    ws.append(headers)
-
-    for row_data in excel_rows:
-        ws.append([
-            row_data['stt'],
-            row_data['page_name'],
-            row_data['platform'],
-            row_data['post_type'],
-            row_data['caption'],
-            row_data['video_path'],
-            row_data['first_comment'],
-            row_data['post_date'],
-            row_data['post_time'],
-            row_data['timezone'],
-            row_data['action']
-        ])
+    if excel_type == "token":
+        headers = [
+            "STT", "Trang", "UID", "Nền tảng", "Loại bài", "Nội dung",
+            "URL video/ảnh", "Bình luận đầu tiên", "Ngày đăng (YYYY-MM-DD)",
+            "Giờ đăng (HH:mm)", "Múi giờ", "Hành động"
+        ]
+        ws.append(headers)
+        for row_data in excel_rows:
+            ws.append([
+                row_data['stt'],
+                row_data['page_name'],
+                row_data['uid'],
+                row_data['platform'],
+                row_data['post_type'],
+                row_data['caption'],
+                row_data['video_path'],
+                row_data['first_comment'],
+                row_data['post_date'],
+                row_data['post_time'],
+                row_data['timezone'],
+                row_data['action']
+            ])
+    else:
+        headers = [
+            "STT", "Trang", "Nền tảng", "Loại bài", "Nội dung",
+            "URL video/ảnh", "Bình luận đầu tiên", "Ngày đăng (YYYY-MM-DD)",
+            "Giờ đăng (HH:mm)", "Múi giờ", "Hành động"
+        ]
+        ws.append(headers)
+        for row_data in excel_rows:
+            ws.append([
+                row_data['stt'],
+                row_data['page_name'],
+                row_data['platform'],
+                row_data['post_type'],
+                row_data['caption'],
+                row_data['video_path'],
+                row_data['first_comment'],
+                row_data['post_date'],
+                row_data['post_time'],
+                row_data['timezone'],
+                row_data['action']
+            ])
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    timestamp_str = datetime.now().strftime('%Y%m%d-%H%M%S')
-    excel_filename = output_dir / ('blogbio-' + timestamp_str + '.xlsx')
+    timestamp_str = datetime.now().strftime("%Y%m%d-%H%M%S")
+    prefix = "blogbio-token" if excel_type == "token" else "blogbio"
+    excel_filename = output_dir / f"{prefix}-{timestamp_str}.xlsx"
     counter = 1
     while excel_filename.exists():
-        excel_filename = output_dir / ('blogbio-' + timestamp_str + '_' + str(counter) + '.xlsx')
+        excel_filename = output_dir / f"{prefix}-{timestamp_str}_{counter}.xlsx"
         counter += 1
 
     wb.save(str(excel_filename))
@@ -80,8 +133,14 @@ def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_
     unused_pages = pages[page_idx:]
     unused_file = None
     if unused_pages:
-        unused_file = output_dir / 'page-chua-dang.txt'
-        unused_file.write_text('\n'.join(unused_pages), encoding='utf-8')
+        unused_file = output_dir / "page-chua-dang.txt"
+        lines_to_write = []
+        for u in unused_pages:
+            if isinstance(u, dict):
+                lines_to_write.append(u.get('raw', str(u)))
+            else:
+                lines_to_write.append(str(u))
+        unused_file.write_text("\n".join(lines_to_write), encoding="utf-8")
 
     return {
         'excel_path': str(excel_filename),
@@ -90,5 +149,6 @@ def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_
         'unused_file': str(unused_file) if unused_file else None,
         'total_videos_used': video_idx,
         'used_folders': used_folders,
-        'last_folder_used': used_folders[-1] if used_folders else None
+        'last_folder_used': used_folders[-1] if used_folders else None,
+        'excel_type': excel_type
     }
