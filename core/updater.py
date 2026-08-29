@@ -15,8 +15,16 @@ APP_VERSION = "2.5.2"
 GITHUB_REPO = "khoathoiloi/Tool_Tong_Hop_GUI"
 API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
+def get_app_root_dir():
+    """Lấy đúng đường dẫn thư mục gốc của app dù đang chạy EXE đóng gói hay chạy Python code"""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    else:
+        # File này nằm trong core/updater.py -> thư mục gốc là thư mục cha của core
+        core_dir = os.path.dirname(os.path.abspath(__file__))
+        return os.path.dirname(core_dir)
+
 def _compare_versions(current_v: str, latest_v: str) -> bool:
-    """Trả về True nếu latest_v mới hơn current_v"""
     def _parse(v):
         v = v.lstrip('vV').strip()
         parts = []
@@ -32,18 +40,6 @@ def _compare_versions(current_v: str, latest_v: str) -> bool:
     return _parse(latest_v) > _parse(current_v)
 
 def check_for_updates(current_version=APP_VERSION, repo_name=GITHUB_REPO):
-    """
-    Kiểm tra phiên bản mới từ GitHub Release API
-    Trả về dict: {
-        'has_update': bool,
-        'latest_version': str,
-        'tag_name': str,
-        'html_url': str,
-        'body': str,
-        'download_url': str,
-        'asset_name': str
-    }
-    """
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
@@ -62,7 +58,6 @@ def check_for_updates(current_version=APP_VERSION, repo_name=GITHUB_REPO):
                 body = data.get('body', '')
                 html_url = data.get('html_url', '')
 
-                # Tìm asset file zip hoặc exe
                 assets = data.get('assets', [])
                 download_url = ''
                 asset_name = ''
@@ -94,9 +89,10 @@ def check_for_updates(current_version=APP_VERSION, repo_name=GITHUB_REPO):
 
     return {'has_update': False, 'current_version': current_version}
 
-def download_and_extract_update(download_url, target_dir, progress_cb=None, log_cb=None):
+def download_and_apply_update(download_url, progress_cb=None, log_cb=None):
     """
-    Tải file update ZIP và giải nén đè vào target_dir
+    Tải bản cập nhật ZIP, giải nén vào thư mục tạm, tạo script ghi đè file khi đóng app
+    và tự động khởi động lại ứng dụng với phiên bản mới nhất!
     """
     if not download_url:
         if log_cb: log_cb("Không tìm thấy link tải bản cập nhật!", "ERROR")
@@ -106,7 +102,15 @@ def download_and_extract_update(download_url, target_dir, progress_cb=None, log_
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
 
-    temp_zip = os.path.join(tempfile.gettempdir(), "mastertool_update.zip")
+    app_root = get_app_root_dir()
+    temp_dir = tempfile.gettempdir()
+    temp_zip = os.path.join(temp_dir, "mastertool_update.zip")
+    staging_dir = os.path.join(temp_dir, "mastertool_staging")
+
+    if os.path.exists(staging_dir):
+        shutil.rmtree(staging_dir, ignore_errors=True)
+    os.makedirs(staging_dir, exist_ok=True)
+
     if log_cb: log_cb(f"⏳ Đang tải bản cập nhật từ: {download_url}...", "INFO")
 
     req = urllib.request.Request(download_url, headers={'User-Agent': 'MasterToolHub-Updater'})
@@ -125,19 +129,62 @@ def download_and_extract_update(download_url, target_dir, progress_cb=None, log_
                 pct = int(downloaded / total_size * 100)
                 progress_cb(pct, downloaded, total_size)
 
-    if log_cb: log_cb("📦 Đang giải nén và cập nhật tệp tin...", "INFO")
+    if log_cb: log_cb("📦 Đang giải nén dữ liệu cập nhật...", "INFO")
 
     try:
         with zipfile.ZipFile(temp_zip, 'r') as zip_ref:
-            zip_ref.extractall(target_dir)
-        if log_cb: log_cb("🎉 CẬP NHẬT HOÀN TẤT THÀNH CÔNG!", "SUCCESS")
-        return True
+            zip_ref.extractall(staging_dir)
     except Exception as e:
-        if log_cb: log_cb(f"❌ Lỗi giải nén: {e}", "ERROR")
+        if log_cb: log_cb(f"❌ Lỗi giải nén ZIP: {e}", "ERROR")
         return False
     finally:
         if os.path.exists(temp_zip):
-            try:
-                os.remove(temp_zip)
-            except Exception:
-                pass
+            try: os.remove(temp_zip)
+            except Exception: pass
+
+    # Kiểm tra xem zip có chứa folder con lồng nhau không
+    source_copy_dir = staging_dir
+    entries = os.listdir(staging_dir)
+    if len(entries) == 1 and os.path.isdir(os.path.join(staging_dir, entries[0])):
+        source_copy_dir = os.path.join(staging_dir, entries[0])
+
+    if log_cb: log_cb("🔄 Đang khởi tạo tiến trình ghi đè và tự khởi động lại...", "SUCCESS")
+
+    # Xác định file khởi chạy lại
+    is_frozen = getattr(sys, 'frozen', False)
+    exe_name = "MasterToolHub.exe"
+    exe_target = os.path.join(app_root, exe_name)
+    run_bat_target = os.path.join(app_root, "run_app.bat")
+
+    relaunch_cmd = f'start "" "{exe_target}"' if (is_frozen or os.path.exists(exe_target)) else f'start "" "{run_bat_target}"'
+
+    # Tạo batch script độc lập để ghi đè file sau khi app đóng
+    bat_path = os.path.join(temp_dir, "apply_mastertool_update.bat")
+    bat_content = f"""@echo off
+title DANG CAP NHAT PHAN MEM...
+timeout /t 2 /nobreak > nul
+
+:: Copy đè toàn bộ tệp mới vào thư mục ứng dụng
+xcopy "{source_copy_dir}\\*" "{app_root}\\" /E /Y /I /Q > nul
+
+:: Xóa thư mục tạm staging
+rmdir /s /q "{staging_dir}" > nul
+
+:: Khởi động lại ứng dụng
+{relaunch_cmd}
+
+:: Tự xóa file bat cập nhật
+del "%~f0" > nul
+exit
+"""
+    with open(bat_path, "w", encoding="utf-8") as f:
+        f.write(bat_content)
+
+    # Chạy script cập nhật trong tiến trình độc lập
+    if os.name == 'nt':
+        creationflags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        subprocess.Popen(["cmd.exe", "/c", bat_path], creationflags=creationflags, close_fds=True)
+    else:
+        subprocess.Popen(["sh", bat_path], start_new_session=True)
+
+    return True

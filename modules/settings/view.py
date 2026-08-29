@@ -3,17 +3,18 @@ import os
 import sys
 import threading
 import webbrowser
+import time
 import tkinter as tk
 from tkinter import ttk, messagebox
 from core.cuda_env import get_gpu_info
 from core.ffmpeg_finder import find_ffmpeg
-from core.updater import APP_VERSION, GITHUB_REPO, check_for_updates, download_and_extract_update
+from core.updater import APP_VERSION, GITHUB_REPO, check_for_updates, download_and_apply_update, get_app_root_dir
 
 class SettingsView(ttk.Frame):
     def __init__(self, parent, root):
         super().__init__(parent)
         self.root = root
-        self.app_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        self.app_dir = get_app_root_dir()
         self._build_ui()
 
     def _build_ui(self):
@@ -22,7 +23,6 @@ class SettingsView(ttk.Frame):
         tk.Label(header, text="⚙️ CÀI ĐẶT HỆ THỐNG & CẬP NHẬT PHẦN MỀM", font=("Segoe UI", 13, "bold"), bg="#1e1e2e", fg="#cba6f7").pack(side=tk.LEFT, padx=10)
         tk.Label(header, text="Thông tin phần cứng, GPU, FFmpeg và tự động cập nhật từ GitHub", font=("Segoe UI", 9), bg="#1e1e2e", fg="#a6adc8").pack(side=tk.LEFT, padx=5)
 
-        # Main scrollable or vertical layout
         content = tk.Frame(self, bg="#1e1e2e", padx=15, pady=8)
         content.pack(fill=tk.BOTH, expand=True)
 
@@ -81,7 +81,7 @@ class SettingsView(ttk.Frame):
 
         tk.Button(r_btns, text="📂 Mở Thư Mục Ổ E:\\", font=("Segoe UI", 9, "bold"), bg="#45475a", fg="#cdd6f4", relief="flat", padx=12, pady=6, command=lambda: self._open_dir("E:\\")).pack(side=tk.LEFT, padx=(0, 10))
         tk.Button(r_btns, text="📂 Mở Thư Mục Tool E:\\Tool_Tong_Hop_GUI", font=("Segoe UI", 9, "bold"), bg="#45475a", fg="#cdd6f4", relief="flat", padx=12, pady=6, command=lambda: self._open_dir(r"E:\Tool_Tong_Hop_GUI")).pack(side=tk.LEFT, padx=(0, 10))
-        tk.Button(r_btns, text="📂 Mở Thư Mục User Data Chrome", font=("Segoe UI", 9, "bold"), bg="#45475a", fg="#cdd6f4", relief="flat", padx=12, pady=6, command=lambda: self._open_dir(r"E:\Tool_Tong_Hop_GUI\user_data")).pack(side=tk.LEFT, padx=(0, 10))
+        tk.Button(r_btns, text="📂 Mở Thư Mục User Data Chrome", font=("Segoe UI", 9, "bold"), bg="#45475a", fg="#cdd6f4", relief="flat", padx=12, pady=6, command=lambda: self._open_dir(os.path.join(self.app_dir, "user_data"))).pack(side=tk.LEFT, padx=(0, 10))
         tk.Button(r_btns, text="📂 Mở Ổ D:\\", font=("Segoe UI", 9, "bold"), bg="#45475a", fg="#cdd6f4", relief="flat", padx=12, pady=6, command=lambda: self._open_dir("D:\\")).pack(side=tk.LEFT)
 
     def _add_info_row(self, parent, label, value, val_color="#cdd6f4"):
@@ -145,10 +145,18 @@ class SettingsView(ttk.Frame):
                         fg="#89b4fa"
                     )
 
-                ok = download_and_extract_update(download_url, self.app_dir, _prog)
+                def _log(msg, lvl="INFO"):
+                    self.lbl_update_status.config(text=msg, fg="#a6e3a1" if lvl=="SUCCESS" else "#89b4fa")
+
+                ok = download_and_apply_update(download_url, progress_cb=_prog, log_cb=_log)
                 if ok:
-                    self.lbl_update_status.config(text="🎉 Đã cập nhật thành công! Vui lòng khởi động lại app.", fg="#a6e3a1")
-                    messagebox.showinfo("Thành công", "ĐÃ CẬP NHẬT THÀNH CÔNG!\n\nVui lòng khởi động lại chương trình để áp dụng phiên bản mới.")
+                    messagebox.showinfo(
+                        "Đang Áp Dụng Cập Nhật",
+                        "🎉 ĐÃ TẢI XONG BẢN CẬP NHẬT MỚI!\n\nỨng dụng sẽ tự động đóng và khởi động lại ngay bây giờ để hoàn tất cập nhật."
+                    )
+                    # Đóng app ngay để nhường quyền ghi đè file cho script cập nhật
+                    self.root.destroy()
+                    os._exit(0)
                 else:
                     self.lbl_update_status.config(text="❌ Tự động cập nhật thất bại, vui lòng tải từ GitHub.", fg="#f38ba8")
                     webbrowser.open(release_page or f"https://github.com/{GITHUB_REPO}/releases")
