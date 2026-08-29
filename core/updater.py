@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 import os
 import sys
 import json
@@ -11,7 +11,7 @@ import zipfile
 import tempfile
 import shutil
 
-APP_VERSION = "2.6.0"
+APP_VERSION = "2.6.1"
 GITHUB_REPO = "khoathoiloi/Tool_Tong_Hop_GUI"
 API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 

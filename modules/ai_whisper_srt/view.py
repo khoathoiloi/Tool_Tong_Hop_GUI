@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 import os
 import sys
 import time
@@ -23,10 +23,20 @@ from modules.ai_whisper_srt.model_manager import (
     download_model_to_local
 )
 
+class AiWhisperSrtView:
+    def __new__(cls, *args, **kwargs):
+        return AIWhisperSRTView(*args, **kwargs)
+
 class AIWhisperSRTView(tk.Frame):
-    def __init__(self, parent, root, app_dir):
+    def __init__(self, parent, root, app_dir=None):
         super().__init__(parent, bg='#1e1e2e')
         self.root = root
+        if app_dir is None:
+            try:
+                from core.updater import get_app_root_dir
+                app_dir = get_app_root_dir()
+            except Exception:
+                app_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         self.app_dir = app_dir
         self.ffmpeg_bin = find_ffmpeg()
         self.active_model = None
@@ -477,3 +487,5 @@ class AIWhisperSRTView(tk.Frame):
                 self._update_model_status_label()
 
         threading.Thread(target=_worker, daemon=True).start()
+        
+AiWhisperSrtView = AIWhisperSRTView

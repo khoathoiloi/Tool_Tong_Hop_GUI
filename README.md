@@ -1,7 +1,7 @@
-﻿# 🚀 MasterToolHub - Bộ Công Cụ Tổng Hợp Fanpage & Media (v2.5.0)
+# 🚀 MasterToolHub - Bộ Công Cụ Tổng Hợp Fanpage & Media (v2.6.1)
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.5.0-blue.svg?cacheSeconds=2592000" alt="Version 2.5.0" />
+  <img src="https://img.shields.io/badge/version-2.6.1-blue.svg?cacheSeconds=2592000" alt="Version 2.6.1" />
   <img src="https://img.shields.io/badge/Python-3.12-brightgreen.svg" alt="Python 3.12" />
   <img src="https://img.shields.io/badge/CUDA-12.x-green.svg" alt="CUDA 12" />
   <img src="https://img.shields.io/badge/License-MIT-orange.svg" alt="License MIT" />
@@ -13,7 +13,7 @@ Bộ phần mềm đồ họa (GUI) tổng hợp **All-in-One** tích hợp toà
 
 ## 📥 TẢI VỀ & SỬ DỤNG NGAY (PORTABLE - KHÔNG CẦN CÀI ĐẶT)
 
-👉 **[Tải Bản Mới Nhất (MasterToolHub_v2.5.0.zip)](https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/latest)**
+👉 **[Tải Bản Mới Nhất (MasterToolHub_v2.6.1.zip)](https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/latest)**
 
 *Tải về, giải nén và mở file `MasterToolHub.exe` hoặc click đúp `run_app.bat` để chạy ngay.*
 
