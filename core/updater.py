@@ -11,16 +11,25 @@ import zipfile
 import tempfile
 import shutil
 
-APP_VERSION = "2.5.3"
+APP_VERSION = "2.5.4"
 GITHUB_REPO = "khoathoiloi/Tool_Tong_Hop_GUI"
 API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
 def get_app_root_dir():
     """Lấy đúng đường dẫn thư mục gốc của app dù đang chạy EXE đóng gói hay chạy Python code"""
     if getattr(sys, 'frozen', False):
-        return os.path.dirname(sys.executable)
+        exe_dir = os.path.dirname(sys.executable)
+        # Phòng trường hợp exe nằm lồng trong _internal
+        if os.path.basename(exe_dir).lower() == '_internal':
+            return os.path.dirname(exe_dir)
+        return exe_dir
     else:
         core_dir = os.path.dirname(os.path.abspath(__file__))
+        if os.path.basename(core_dir).lower() == 'core':
+            parent = os.path.dirname(core_dir)
+            if os.path.basename(parent).lower() == '_internal':
+                return os.path.dirname(parent)
+            return parent
         return os.path.dirname(core_dir)
 
 def _compare_versions(current_v: str, latest_v: str) -> bool:

@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 import os
 import sys
 import re
@@ -321,9 +321,9 @@ def run_shorten_automation(excel_path, selected_domain, show_browser, target_she
                                 page.locator("#domain-select").select_option(label=selected_domain)
                             except Exception:
                                 try:
-                                page.locator("#domain-select").select_option(value=selected_domain)
-                            except Exception:
-                                pass
+                                    page.locator("#domain-select").select_option(value=selected_domain)
+                                except Exception:
+                                    pass
 
                             page.locator("#short-path").fill(slug)
                             time.sleep(0.3)
