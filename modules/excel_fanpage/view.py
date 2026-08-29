@@ -8,7 +8,7 @@ from tkinter import ttk, filedialog, messagebox
 from core.logger import UILogger
 from core.theme import THEME
 from modules.excel_fanpage.core import scan_and_prepare_data
-from modules.excel_fanpage.excel_writer import export_excel_file
+from modules.excel_fanpage.excel_writer import export_excel_file, DEFAULT_COMMENT_1
 from modules.excel_fanpage.config_mgr import ConfigMgr
 from modules.shiftlink_shortener.shortener import shorten_multiple_urls
 
@@ -52,7 +52,7 @@ class ExcelFanpageView(ttk.Frame):
         header = tk.Frame(self, bg="#1e1e2e", pady=6)
         header.pack(fill=tk.X)
         tk.Label(header, text="📊 TẠO FILE EXCEL FANPAGE REELS + TỰ ĐỘNG RÚT GỌN LINK", font=("Segoe UI", 13, "bold"), bg="#1e1e2e", fg="#89b4fa").pack(side=tk.LEFT, padx=10)
-        tk.Label(header, text="Hỗ trợ File Excel Thường (11 cột) và File Token (12 cột có UID), tích hợp rút gọn link", font=("Segoe UI", 9), bg="#1e1e2e", fg="#a6adc8").pack(side=tk.LEFT, padx=5)
+        tk.Label(header, text="Chuẩn mới FBPublisher V5 (13 cột có UID & tách Bình luận 1, 2), tự động rút gọn link", font=("Segoe UI", 9), bg="#1e1e2e", fg="#a6adc8").pack(side=tk.LEFT, padx=5)
 
         content = tk.Frame(self, bg="#1e1e2e", padx=10, pady=4)
         content.pack(fill=tk.BOTH, expand=True)
@@ -61,13 +61,13 @@ class ExcelFanpageView(ttk.Frame):
         grp_page = tk.LabelFrame(content, text=" 1. Danh sách Fanpage Facebook & Định Dạng File Xuất ", font=("Segoe UI", 9, "bold"), bg="#24273a", fg="#cdd6f4", padx=8, pady=5)
         grp_page.pack(fill=tk.X, pady=(0, 5))
 
-        # Chọn loại file Excel (11 cột vs 12 cột Token)
+        # Chọn loại file Excel (13 cột Token V5 vs 11 cột Thường)
         r_type = tk.Frame(grp_page, bg="#24273a")
         r_type.pack(fill=tk.X, pady=(0, 4))
         tk.Label(r_type, text="Định dạng xuất:", width=18, anchor="w", font=("Segoe UI", 9, "bold"), bg="#24273a", fg="#cba6f7").pack(side=tk.LEFT)
         
         self.excel_type_var = tk.StringVar(value="token")
-        tk.Radiobutton(r_type, text="File Excel Token (12 cột có UID)", variable=self.excel_type_var, value="token", font=("Segoe UI", 9, "bold"), bg="#24273a", fg="#a6e3a1", selectcolor="#313244", activebackground="#24273a", activeforeground="#a6e3a1").pack(side=tk.LEFT, padx=(0, 15))
+        tk.Radiobutton(r_type, text="File Excel Token V5 (13 cột chuẩn FBPublisher V5)", variable=self.excel_type_var, value="token", font=("Segoe UI", 9, "bold"), bg="#24273a", fg="#a6e3a1", selectcolor="#313244", activebackground="#24273a", activeforeground="#a6e3a1").pack(side=tk.LEFT, padx=(0, 15))
         tk.Radiobutton(r_type, text="File Excel Thường (11 cột)", variable=self.excel_type_var, value="standard", bg="#24273a", fg="#cdd6f4", selectcolor="#313244", activebackground="#24273a", activeforeground="#89b4fa").pack(side=tk.LEFT)
 
         # Chế độ nhập liệu Page
@@ -89,13 +89,13 @@ class ExcelFanpageView(ttk.Frame):
         self.text_manual.pack(fill=tk.X)
 
         # 2. Box Cấu hình Kho Video & Ghép
-        grp_cfg = tk.LabelFrame(content, text=" 2. Cấu hình Kho Video & Ghép ", font=("Segoe UI", 9, "bold"), bg="#24273a", fg="#cdd6f4", padx=8, pady=5)
+        grp_cfg = tk.LabelFrame(content, text=" 2. Cấu hình Kho Video & Bình Luận ", font=("Segoe UI", 9, "bold"), bg="#24273a", fg="#cdd6f4", padx=8, pady=5)
         grp_cfg.pack(fill=tk.X, pady=(0, 5))
 
         # Kho video
         r1 = tk.Frame(grp_cfg, bg="#24273a")
         r1.pack(fill=tk.X, pady=2)
-        tk.Label(r1, text="Kho Video:", width=20, anchor="w", bg="#24273a", fg="#cdd6f4").pack(side=tk.LEFT)
+        tk.Label(r1, text="Kho Video:", width=22, anchor="w", bg="#24273a", fg="#cdd6f4").pack(side=tk.LEFT)
         self.entry_kho = tk.Entry(r1, font=("Segoe UI", 9), bg="#313244", fg="#cdd6f4", insertbackground="#cdd6f4", relief="flat")
         self.entry_kho.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 6), ipady=3)
         tk.Button(r1, text="Chọn Kho...", font=("Segoe UI", 9), bg="#45475a", fg="#cdd6f4", relief="flat", padx=10, command=self._browse_kho).pack(side=tk.RIGHT)
@@ -103,7 +103,7 @@ class ExcelFanpageView(ttk.Frame):
         # Ratio & Anti-duplicate
         r2 = tk.Frame(grp_cfg, bg="#24273a")
         r2.pack(fill=tk.X, pady=2)
-        tk.Label(r2, text="Số Page / 1 Video:", width=20, anchor="w", bg="#24273a", fg="#cdd6f4").pack(side=tk.LEFT)
+        tk.Label(r2, text="Số Page / 1 Video:", width=22, anchor="w", bg="#24273a", fg="#cdd6f4").pack(side=tk.LEFT)
         self.spin_ratio = tk.Spinbox(r2, from_=1, to=10, width=5, font=("Segoe UI", 9), bg="#313244", fg="#cdd6f4", buttonbackground="#45475a")
         self.spin_ratio.delete(0, tk.END)
         self.spin_ratio.insert(0, "2")
@@ -116,27 +116,35 @@ class ExcelFanpageView(ttk.Frame):
         # Domain & Hashtag
         r3 = tk.Frame(grp_cfg, bg="#24273a")
         r3.pack(fill=tk.X, pady=2)
-        tk.Label(r3, text="Lọc Domain gốc (link-da-dang):", width=24, anchor="w", bg="#24273a", fg="#cdd6f4").pack(side=tk.LEFT)
+        tk.Label(r3, text="Lọc Domain gốc (link-da-dang):", width=26, anchor="w", bg="#24273a", fg="#cdd6f4").pack(side=tk.LEFT)
         self.entry_domain = tk.Entry(r3, font=("Segoe UI", 9), bg="#313244", fg="#cdd6f4", insertbackground="#cdd6f4", relief="flat")
         self.entry_domain.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=3)
 
         r4 = tk.Frame(grp_cfg, bg="#24273a")
         r4.pack(fill=tk.X, pady=2)
-        tk.Label(r4, text="Hashtag gắn kèm:", width=24, anchor="w", bg="#24273a", fg="#cdd6f4").pack(side=tk.LEFT)
+        tk.Label(r4, text="Hashtag gắn kèm:", width=26, anchor="w", bg="#24273a", fg="#cdd6f4").pack(side=tk.LEFT)
         self.entry_tag = tk.Entry(r4, font=("Segoe UI", 9), bg="#313244", fg="#cdd6f4", insertbackground="#cdd6f4", relief="flat")
         self.entry_tag.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=3)
+
+        # Text Bình luận 1
+        r_bl1 = tk.Frame(grp_cfg, bg="#24273a")
+        r_bl1.pack(fill=tk.X, pady=2)
+        tk.Label(r_bl1, text="Nội dung Bình luận 1 (V5):", width=26, anchor="w", font=("Segoe UI", 9, "bold"), bg="#24273a", fg="#89b4fa").pack(side=tk.LEFT)
+        self.entry_comment1 = tk.Entry(r_bl1, font=("Segoe UI", 9), bg="#313244", fg="#a6e3a1", insertbackground="#cdd6f4", relief="flat")
+        self.entry_comment1.insert(0, DEFAULT_COMMENT_1)
+        self.entry_comment1.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=3)
 
         # Output
         r5 = tk.Frame(grp_cfg, bg="#24273a")
         r5.pack(fill=tk.X, pady=2)
-        tk.Label(r5, text="Nơi lưu file Excel:", width=24, anchor="w", bg="#24273a", fg="#cdd6f4").pack(side=tk.LEFT)
+        tk.Label(r5, text="Nơi lưu file Excel:", width=26, anchor="w", bg="#24273a", fg="#cdd6f4").pack(side=tk.LEFT)
         self.entry_out = tk.Entry(r5, font=("Segoe UI", 9), bg="#313244", fg="#cdd6f4", insertbackground="#cdd6f4", relief="flat")
         self.entry_out.insert(0, "E:\\")
         self.entry_out.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 6), ipady=3)
         tk.Button(r5, text="Chọn Nơi Lưu...", font=("Segoe UI", 9), bg="#45475a", fg="#cdd6f4", relief="flat", padx=10, command=self._browse_out).pack(side=tk.RIGHT)
 
         # 3. Box Combo Tự Động Rút Gọn Link ShiftLink
-        grp_shorten = tk.LabelFrame(content, text=" 3. Tự Động Rút Gọn Link ShiftLink Vào Cột Bình Luận ", font=("Segoe UI", 9, "bold"), bg="#24273a", fg="#89b4fa", padx=8, pady=5)
+        grp_shorten = tk.LabelFrame(content, text=" 3. Tự Động Rút Gọn Link ShiftLink (Gán Vào Bình Luận 2 / Trả Lời) ", font=("Segoe UI", 9, "bold"), bg="#24273a", fg="#89b4fa", padx=8, pady=5)
         grp_shorten.pack(fill=tk.X, pady=(0, 5))
 
         r_sh1 = tk.Frame(grp_shorten, bg="#24273a")
@@ -145,7 +153,7 @@ class ExcelFanpageView(ttk.Frame):
         self.chk_auto_shorten_var = tk.BooleanVar(value=True)
         tk.Checkbutton(
             r_sh1,
-            text="⚡ Tự động rút gọn link qua ShiftLink gán vào cột 'Bình luận đầu tiên'",
+            text="⚡ Tự động rút gọn link qua ShiftLink gán vào 'Bình luận 2 (Trả lời)'",
             variable=self.chk_auto_shorten_var,
             font=("Segoe UI", 9, "bold"),
             bg="#24273a",
@@ -176,7 +184,7 @@ class ExcelFanpageView(ttk.Frame):
             self.cbo_shorten_domain.current(0)
         self.cbo_shorten_domain.pack(side=tk.LEFT, padx=(0, 10))
 
-        tk.Label(r_sh2, text="(Link rút gọn mới sẽ dán thẳng vào cột Bình Luận Đầu Tiên, không tạo cột mới)", font=("Segoe UI", 8, "italic"), bg="#24273a", fg="#a6adc8").pack(side=tk.LEFT)
+        tk.Label(r_sh2, text="(Link rút gọn mới sẽ dán thẳng vào Bình Luận 2 / Trả lời)", font=("Segoe UI", 8, "italic"), bg="#24273a", fg="#a6adc8").pack(side=tk.LEFT)
 
         # Progress bar
         self.progress = ttk.Progressbar(content, orient="horizontal", mode="determinate")
@@ -262,6 +270,7 @@ class ExcelFanpageView(ttk.Frame):
             "ratio": self.spin_ratio.get(),
             "txt": self.entry_txt_path.get().strip(),
             "excel_type": self.excel_type_var.get(),
+            "comment_1": self.entry_comment1.get().strip(),
             "auto_shorten": self.chk_auto_shorten_var.get(),
             "shorten_domain": self.cbo_shorten_domain.get().strip()
         })
@@ -278,6 +287,9 @@ class ExcelFanpageView(ttk.Frame):
             if data.get("ratio"): self.spin_ratio.delete(0, tk.END); self.spin_ratio.insert(0, str(data.get("ratio")))
             if data.get("txt"): self.entry_txt_path.insert(0, data.get("txt"))
             if data.get("excel_type"): self.excel_type_var.set(data.get("excel_type"))
+            if data.get("comment_1"):
+                self.entry_comment1.delete(0, tk.END)
+                self.entry_comment1.insert(0, data.get("comment_1"))
             if "auto_shorten" in data: self.chk_auto_shorten_var.set(bool(data.get("auto_shorten")))
             if data.get("shorten_domain") and data.get("shorten_domain") in self.domains_list:
                 self.cbo_shorten_domain.set(data.get("shorten_domain"))
@@ -286,7 +298,7 @@ class ExcelFanpageView(ttk.Frame):
         self.logger.clear()
         self.logger.info("--- BẮT ĐẦU KIỂM TRA DỮ LIỆU ---")
         
-        excel_type_name = "File Excel Token (12 cột có UID)" if self.excel_type_var.get() == "token" else "File Excel Thường (11 cột)"
+        excel_type_name = "File Excel Token V5 (13 cột chuẩn FBPublisher V5)" if self.excel_type_var.get() == "token" else "File Excel Thường (11 cột)"
         self.logger.highlight(f"📋 Định dạng file chọn xuất: {excel_type_name}")
 
         pages = self._get_pages()
@@ -343,12 +355,13 @@ class ExcelFanpageView(ttk.Frame):
             ratio = 2
 
         excel_type = self.excel_type_var.get()
-        excel_type_label = "File Excel Token (12 cột có UID)" if excel_type == "token" else "File Excel Thường (11 cột)"
+        excel_type_label = "File Excel Token V5 (13 cột chuẩn FBPublisher V5)" if excel_type == "token" else "File Excel Thường (11 cột)"
         self.logger.highlight(f"📋 Định dạng file xuất: {excel_type_label}")
 
         auto_shorten = self.chk_auto_shorten_var.get()
         shorten_domain = self.cbo_shorten_domain.get().strip() or "nextpart2.online"
         show_chrome = self.chk_show_chrome_var.get()
+        comment1_text = self.entry_comment1.get().strip() or DEFAULT_COMMENT_1
 
         self.btn_start.config(state=tk.DISABLED)
         self.btn_check.config(state=tk.DISABLED)
@@ -397,14 +410,15 @@ class ExcelFanpageView(ttk.Frame):
                             orig_link = it.get("raw_link", "")
                             if orig_link in url_map:
                                 new_short_url = url_map[orig_link]
-                                it["first_comment"] = f"watch full here 👉: {new_short_url}"
+                                it["raw_link"] = new_short_url
+                                it["first_comment"] = f"{comment1_text} {new_short_url}"
                                 shortened_applied += 1
 
-                        self.logger.success(f"✅ Đã gán {shortened_applied} link rút gọn mới vào cột 'Bình luận đầu tiên'!")
+                        self.logger.success(f"✅ Đã gán {shortened_applied} link rút gọn mới vào 'Bình luận 2 (Trả lời)'!")
                     else:
                         self.logger.warning("Các folder video không có dòng link gốc trong link-da-dang.txt để rút gọn.")
 
-                # Xuất file Excel với đúng định dạng (11 cột hoặc 12 cột)
+                # Xuất file Excel với đúng định dạng (13 cột chuẩn V5 hoặc 11 cột)
                 def _prog(cur, total, msg):
                     pct = int(cur / total * 40) + 60
                     self.progress["value"] = pct
@@ -417,7 +431,8 @@ class ExcelFanpageView(ttk.Frame):
                     kho_path_str=kho,
                     output_dir_str=out,
                     progress_cb=_prog,
-                    excel_type=excel_type
+                    excel_type=excel_type,
+                    comment1_text=comment1_text
                 )
                 
                 if self.chk_avoid_dup_var.get() and result["used_folders"]:

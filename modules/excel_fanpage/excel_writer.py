@@ -3,7 +3,9 @@ from datetime import datetime
 from pathlib import Path
 import openpyxl
 
-def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_dir_str, progress_cb=None, excel_type="standard"):
+DEFAULT_COMMENT_1 = "watch full here 👉:"
+
+def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_dir_str, progress_cb=None, excel_type="token", comment1_text=DEFAULT_COMMENT_1):
     kho_path = Path(kho_path_str)
     output_dir = Path(output_dir_str)
     total_valid_videos = len(valid_items)
@@ -19,6 +21,18 @@ def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_
         group_pages = pages[page_idx : page_idx + pages_per_video]
         used_folders.append(current_video['folder_path'])
         
+        # Link raw/shortened URL
+        raw_or_short_url = current_video.get('raw_link', '')
+        # Nếu first_comment có dạng "watch full here 👉: https://..." thì trích xuất phần URL
+        fc = current_video.get('first_comment', '')
+        if fc:
+            import re
+            m = re.search(r'https?://[^\s]+', fc)
+            if m:
+                raw_or_short_url = m.group(0)
+            elif not raw_or_short_url:
+                raw_or_short_url = fc
+
         for p in group_pages:
             if excel_type == "token":
                 if isinstance(p, dict):
@@ -26,7 +40,6 @@ def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_
                     uid_val = p.get('uid', '')
                 else:
                     p_str = str(p).strip()
-                    # Nếu có dấu | phân tách tên và UID
                     if '|' in p_str:
                         parts = p_str.split('|', 1)
                         p_name = parts[0].strip()
@@ -43,7 +56,8 @@ def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_
                     'post_type': 'Reel',
                     'caption': current_video['caption'],
                     'video_path': current_video['video_path'],
-                    'first_comment': current_video['first_comment'],
+                    'comment_1': comment1_text.strip(),
+                    'comment_2': raw_or_short_url,
                     'post_date': None,
                     'post_time': None,
                     'timezone': None,
@@ -58,7 +72,7 @@ def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_
                     'post_type': 'Reel',
                     'caption': current_video['caption'],
                     'video_path': current_video['video_path'],
-                    'first_comment': current_video['first_comment'],
+                    'first_comment': current_video.get('first_comment', ''),
                     'post_date': None,
                     'post_time': None,
                     'timezone': None,
@@ -73,12 +87,12 @@ def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "BaiDang"
 
     if excel_type == "token":
+        ws.title = "DanhSachDangBai"
         headers = [
             "STT", "Trang", "UID", "Nền tảng", "Loại bài", "Nội dung",
-            "URL video/ảnh", "Bình luận đầu tiên", "Ngày đăng (YYYY-MM-DD)",
+            "URL video/ảnh", "Bình luận 1", "Bình luận 2 (Trả lời)", "Ngày đăng (YYYY-MM-DD)",
             "Giờ đăng (HH:mm)", "Múi giờ", "Hành động"
         ]
         ws.append(headers)
@@ -91,13 +105,15 @@ def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_
                 row_data['post_type'],
                 row_data['caption'],
                 row_data['video_path'],
-                row_data['first_comment'],
+                row_data['comment_1'],
+                row_data['comment_2'],
                 row_data['post_date'],
                 row_data['post_time'],
                 row_data['timezone'],
                 row_data['action']
             ])
     else:
+        ws.title = "BaiDang"
         headers = [
             "STT", "Trang", "Nền tảng", "Loại bài", "Nội dung",
             "URL video/ảnh", "Bình luận đầu tiên", "Ngày đăng (YYYY-MM-DD)",
