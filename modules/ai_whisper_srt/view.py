@@ -246,13 +246,25 @@ class AiWhisperSrtView(ttk.Frame):
                             continue
 
                         vad_params = dict(min_silence_duration_ms=400) if use_vad else None
-                        segments, info = model.transcribe(
-                            str(tmp_audio_path),
-                            language=language,
-                            vad_filter=use_vad,
-                            vad_parameters=vad_params,
-                            word_timestamps=True
-                        )
+                        try:
+                            segments, info = model.transcribe(
+                                str(tmp_audio_path),
+                                language=language,
+                                vad_filter=use_vad,
+                                vad_parameters=vad_params,
+                                word_timestamps=True
+                            )
+                        except Exception as vad_err:
+                            if use_vad and ("onnx" in str(vad_err).lower() or "silero" in str(vad_err).lower() or "no_suchfile" in str(vad_err).lower()):
+                                self.logger.warning('⚠️ Không thể tải VAD ONNX model, đang tự động tạo phụ đề không lọc VAD...')
+                                segments, info = model.transcribe(
+                                    str(tmp_audio_path),
+                                    language=language,
+                                    vad_filter=False,
+                                    word_timestamps=True
+                                )
+                            else:
+                                raise vad_err
 
                         all_words = []
                         for seg in segments:
