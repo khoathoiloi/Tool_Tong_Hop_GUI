@@ -60,14 +60,17 @@ def generate_short_slug(original_url, attempt=0):
 
 def wait_for_user_login(page, log_cb, stop_check_cb):
     time.sleep(1.5)
-    user_profile = page.locator("#user-profile")
-    user_display_name = page.locator("#user-display-name")
-    profile_classes = user_profile.get_attribute("class") or ""
-    
-    if user_profile.is_visible() and "hidden" not in profile_classes:
-        username = user_display_name.inner_text().strip() or "User"
-        log_cb(f"👤 Tài khoản đã đăng nhập: {username}", "SUCCESS")
-        return True
+    try:
+        user_profile = page.locator("#user-profile")
+        user_display_name = page.locator("#user-display-name")
+        profile_classes = user_profile.get_attribute("class") or ""
+        
+        if user_profile.is_visible() and "hidden" not in profile_classes:
+            username = user_display_name.inner_text().strip() or "User"
+            log_cb(f"👤 Tài khoản đã đăng nhập: {username}", "SUCCESS")
+            return True
+    except Exception:
+        pass
 
     log_cb("⚠️ CHƯA ĐĂNG NHẬP! Xin mời bạn đăng ký / đăng nhập trực tiếp trên Chrome...", "WARNING")
     log_cb("⏳ Đang đợi bạn đăng nhập...", "INFO")
@@ -78,6 +81,8 @@ def wait_for_user_login(page, log_cb, stop_check_cb):
             if page.is_closed():
                 log_cb("❌ Trình duyệt Chrome đã bị đóng.", "ERROR")
                 return False
+            user_profile = page.locator("#user-profile")
+            user_display_name = page.locator("#user-display-name")
             p_classes = user_profile.get_attribute("class") or ""
             if user_profile.is_visible() and "hidden" not in p_classes:
                 username = user_display_name.inner_text().strip() or "User"
@@ -88,47 +93,45 @@ def wait_for_user_login(page, log_cb, stop_check_cb):
     return False
 
 def fetch_domains_from_web(user_data_dir, log_cb, stop_check_cb):
-    """Mở trình duyệt, chờ đăng nhập và lấy toàn bộ danh sách tên miền từ website"""
     os.makedirs(user_data_dir, exist_ok=True)
     domains = []
     
     with sync_playwright() as playwright:
-        context = playwright.chromium.launch_persistent_context(
-            user_data_dir=user_data_dir,
-            channel="chrome",
-            headless=False,
-            args=["--start-maximized"],
-            no_viewport=True
-        )
-        page = context.pages[0] if context.pages else context.new_page()
-        page.goto(TARGET_URL, wait_until="domcontentloaded")
-
-        if not wait_for_user_login(page, log_cb, stop_check_cb):
-            context.close()
-            return []
-
-        time.sleep(1.5)
         try:
-            page.wait_for_selector("#domain-select option", timeout=5000)
-        except Exception:
-            pass
+            context = playwright.chromium.launch_persistent_context(
+                user_data_dir=user_data_dir,
+                channel="chrome",
+                headless=False,
+                args=["--start-maximized"],
+                no_viewport=True
+            )
+            page = context.pages[0] if context.pages else context.new_page()
+            page.goto(TARGET_URL, wait_until="domcontentloaded")
 
-        raw_opts = page.eval_on_selector_all("#domain-select option", "elems => elems.map(e => e.innerText.trim()).filter(t => t.length > 0)")
-        if raw_opts:
-            domains = list(dict.fromkeys(raw_opts))
-            log_cb(f"✅ Đã nạp thành công {len(domains)} tên miền từ website: {', '.join(domains)}", "SUCCESS")
-        else:
-            log_cb("⚠️ Chưa tìm thấy tên miền nào trong dropdown web.", "WARNING")
+            if not wait_for_user_login(page, log_cb, stop_check_cb):
+                context.close()
+                return []
 
-        context.close()
+            time.sleep(1.5)
+            try:
+                page.wait_for_selector("#domain-select option", timeout=5000)
+            except Exception:
+                pass
+
+            raw_opts = page.eval_on_selector_all("#domain-select option", "elems => elems.map(e => e.innerText.trim()).filter(t => t.length > 0)")
+            if raw_opts:
+                domains = list(dict.fromkeys(raw_opts))
+                log_cb(f"✅ Đã nạp thành công {len(domains)} tên miền từ website: {', '.join(domains)}", "SUCCESS")
+            else:
+                log_cb("⚠️ Chưa tìm thấy tên miền nào trong dropdown web.", "WARNING")
+
+            context.close()
+        except Exception as e:
+            log_cb(f"❌ Lỗi khi tải danh sách tên miền: {e}", "ERROR")
         
     return domains
 
 def shorten_multiple_urls(raw_urls, selected_domain, show_browser, user_data_dir, log_cb, progress_cb, stop_check_cb):
-    """
-    Rút gọn một danh sách các URL gốc trực tiếp (dùng cho quy trình Combo Tạo Excel Fanpage)
-    Trả về dict: {raw_url: shortened_url}
-    """
     unique_urls = [u for u in dict.fromkeys(raw_urls) if u and u.startswith("http")]
     if not unique_urls:
         return {}
@@ -138,81 +141,91 @@ def shorten_multiple_urls(raw_urls, selected_domain, show_browser, user_data_dir
     url_map = {}
 
     with sync_playwright() as playwright:
-        context = playwright.chromium.launch_persistent_context(
-            user_data_dir=user_data_dir,
-            channel="chrome",
-            headless=not show_browser,
-            args=["--start-maximized"] if show_browser else [],
-            no_viewport=True if show_browser else False
-        )
-        page = context.pages[0] if context.pages else context.new_page()
-        page.goto(TARGET_URL, wait_until="domcontentloaded")
+        try:
+            context = playwright.chromium.launch_persistent_context(
+                user_data_dir=user_data_dir,
+                channel="chrome",
+                headless=not show_browser,
+                args=["--start-maximized"] if show_browser else [],
+                no_viewport=True if show_browser else False
+            )
+            page = context.pages[0] if context.pages else context.new_page()
+            page.goto(TARGET_URL, wait_until="domcontentloaded")
 
-        if not wait_for_user_login(page, log_cb, stop_check_cb):
-            context.close()
-            return {}
+            if not wait_for_user_login(page, log_cb, stop_check_cb):
+                context.close()
+                return {}
 
-        time.sleep(1.0)
-        total = len(unique_urls)
+            time.sleep(1.0)
+            total = len(unique_urls)
 
-        for idx, original_url in enumerate(unique_urls, 1):
-            if stop_check_cb():
-                log_cb("⚠️ Đã dừng tiến trình rút gọn.", "WARNING")
-                break
+            for idx, original_url in enumerate(unique_urls, 1):
+                if stop_check_cb():
+                    log_cb("⚠️ Đã dừng tiến trình rút gọn.", "WARNING")
+                    break
 
-            if progress_cb:
-                progress_cb(idx, total)
+                if progress_cb:
+                    progress_cb(idx, total)
 
-            success = False
-            for attempt in range(5):
-                if stop_check_cb(): break
-                slug = generate_short_slug(original_url, attempt=attempt)
+                success = False
+                for attempt in range(5):
+                    if stop_check_cb(): break
+                    slug = generate_short_slug(original_url, attempt=attempt)
 
-                page.locator("#original-url").fill(original_url)
-                try:
-                    page.locator("#domain-select").select_option(label=selected_domain)
-                except Exception:
                     try:
-                        page.locator("#domain-select").select_option(value=selected_domain)
-                    except Exception:
-                        pass
+                        if page.is_closed():
+                            log_cb("❌ Trình duyệt đã bị đóng!", "ERROR")
+                            break
 
-                page.locator("#short-path").fill(slug)
-                time.sleep(0.3)
+                        page.locator("#original-url").fill(original_url)
+                        try:
+                            page.locator("#domain-select").select_option(label=selected_domain)
+                        except Exception:
+                            try:
+                                page.locator("#domain-select").select_option(value=selected_domain)
+                            except Exception:
+                                pass
 
-                try:
-                    submit_btn = page.locator("#shorten-form button[type='submit']")
-                    with page.expect_response(lambda res: "/api/links" in res.url and res.request.method == "POST", timeout=12000) as resp_info:
-                        submit_btn.click()
+                        page.locator("#short-path").fill(slug)
+                        time.sleep(0.3)
 
-                    response = resp_info.value
-                    toast_msg = "Thành công"
-                    try:
-                        toast_elem = page.locator("#toast.show")
-                        toast_elem.wait_for(state="visible", timeout=2500)
-                        toast_msg = toast_elem.inner_text().strip()
-                    except Exception:
-                        pass
+                        submit_btn = page.locator("#shorten-form button[type='submit']")
+                        with page.expect_response(lambda res: "/api/links" in res.url and res.request.method == "POST", timeout=12000) as resp_info:
+                            submit_btn.click()
 
-                    if response.status in [200, 201]:
-                        res_data = response.json()
-                        created_path = res_data.get("shortPath", slug)
-                        shortened_url = f"https://{selected_domain}/{created_path}"
-                        url_map[original_url] = shortened_url
-                        log_cb(f"[{idx:02d}/{total:02d}] ✅ Đã rút gọn: {original_url} -> {shortened_url}", "SUCCESS")
-                        success = True
-                        time.sleep(1.2)
-                        break
-                    else:
-                        log_cb(f"[{idx:02d}/{total:02d}] ⚠️ Thử lại slug khác ({toast_msg})...", "WARNING")
+                        response = resp_info.value
+                        toast_msg = "Thành công"
+                        try:
+                            toast_elem = page.locator("#toast.show")
+                            toast_elem.wait_for(state="visible", timeout=2500)
+                            toast_msg = toast_elem.inner_text().strip()
+                        except Exception:
+                            pass
+
+                        if response.status in [200, 201]:
+                            res_data = response.json()
+                            created_path = res_data.get("shortPath", slug)
+                            shortened_url = f"https://{selected_domain}/{created_path}"
+                            url_map[original_url] = shortened_url
+                            log_cb(f"[{idx:02d}/{total:02d}] ✅ Đã rút gọn: {original_url} -> {shortened_url}", "SUCCESS")
+                            success = True
+                            time.sleep(1.2)
+                            break
+                        else:
+                            log_cb(f"[{idx:02d}/{total:02d}] ⚠️ Thử lại slug khác ({toast_msg})...", "WARNING")
+                            time.sleep(0.8)
+                    except Exception as e:
+                        if page.is_closed():
+                            log_cb("❌ Trình duyệt đã bị đóng!", "ERROR")
+                            break
                         time.sleep(0.8)
-                except Exception as e:
-                    time.sleep(0.8)
 
-            if not success and not stop_check_cb():
-                log_cb(f"[{idx:02d}/{total:02d}] ❌ Không thể rút gọn link: {original_url}", "ERROR")
+                if not success and not stop_check_cb():
+                    log_cb(f"[{idx:02d}/{total:02d}] ❌ Không thể rút gọn link: {original_url}", "ERROR")
 
-        context.close()
+            context.close()
+        except Exception as e:
+            log_cb(f"❌ Lỗi tiến trình rút gọn: {e}", "ERROR")
 
     return url_map
 
@@ -259,96 +272,106 @@ def run_shorten_automation(excel_path, selected_domain, show_browser, target_she
     os.makedirs(user_data_dir, exist_ok=True)
 
     with sync_playwright() as playwright:
-        context = playwright.chromium.launch_persistent_context(
-            user_data_dir=user_data_dir,
-            channel="chrome",
-            headless=not show_browser,
-            args=["--start-maximized"] if show_browser else [],
-            no_viewport=True if show_browser else False
-        )
-        page = context.pages[0] if context.pages else context.new_page()
-        page.goto(TARGET_URL, wait_until="domcontentloaded")
+        try:
+            context = playwright.chromium.launch_persistent_context(
+                user_data_dir=user_data_dir,
+                channel="chrome",
+                headless=not show_browser,
+                args=["--start-maximized"] if show_browser else [],
+                no_viewport=True if show_browser else False
+            )
+            page = context.pages[0] if context.pages else context.new_page()
+            page.goto(TARGET_URL, wait_until="domcontentloaded")
 
-        if not wait_for_user_login(page, log_cb, stop_check_cb):
-            context.close()
-            return False, None
+            if not wait_for_user_login(page, log_cb, stop_check_cb):
+                context.close()
+                return False, None
 
-        time.sleep(1.0)
+            time.sleep(1.0)
 
-        for sname, sheet, col_idx, out_col, items in tasks:
-            log_cb(f"📂 Đang xử lý Sheet: '{sname}' ({len(items)} links)...", "HIGHLIGHT")
-            for row_idx, original_url, full_cell_text in items:
+            for sname, sheet, col_idx, out_col, items in tasks:
+                log_cb(f"📂 Đang xử lý Sheet: '{sname}' ({len(items)} links)...", "HIGHLIGHT")
+                for row_idx, original_url, full_cell_text in items:
+                    if stop_check_cb():
+                        log_cb("⚠️ Đã dừng tiến trình rút gọn.", "WARNING")
+                        break
+
+                    processed_count += 1
+                    progress_cb(processed_count, total_links_all)
+                    
+                    if original_url in url_cache:
+                        cached_val = url_cache[original_url]
+                        sheet.cell(row=row_idx, column=out_col, value=cached_val)
+                        log_cb(f"[{processed_count:03d}/{total_links_all:03d}] [{sname}] Dòng #{row_idx:<3d} -> ⚡ [DÙNG LẠI] {cached_val}", "INFO")
+                        continue
+
+                    success = False
+                    for attempt in range(5):
+                        if stop_check_cb():
+                            break
+                        slug = generate_short_slug(original_url, attempt=attempt)
+                        
+                        try:
+                            if page.is_closed():
+                                log_cb("❌ Trình duyệt đã bị đóng!", "ERROR")
+                                break
+
+                            page.locator("#original-url").fill(original_url)
+                            try:
+                                page.locator("#domain-select").select_option(label=selected_domain)
+                            except Exception:
+                                try:
+                                page.locator("#domain-select").select_option(value=selected_domain)
+                            except Exception:
+                                pass
+
+                            page.locator("#short-path").fill(slug)
+                            time.sleep(0.3)
+
+                            submit_btn = page.locator("#shorten-form button[type='submit']")
+                            with page.expect_response(lambda res: "/api/links" in res.url and res.request.method == "POST", timeout=12000) as resp_info:
+                                submit_btn.click()
+
+                            response = resp_info.value
+                            toast_msg = "Thành công"
+                            try:
+                                toast_elem = page.locator("#toast.show")
+                                toast_elem.wait_for(state="visible", timeout=2500)
+                                toast_msg = toast_elem.inner_text().strip()
+                            except Exception:
+                                pass
+
+                            if response.status in [200, 201]:
+                                res_data = response.json()
+                                created_path = res_data.get("shortPath", slug)
+                                shortened_url = f"https://{selected_domain}/{created_path}"
+                                final_text = f"watch full here 👉: {shortened_url}"
+                                
+                                url_cache[original_url] = final_text
+                                sheet.cell(row=row_idx, column=out_col, value=final_text)
+                                
+                                log_cb(f"[{processed_count:03d}/{total_links_all:03d}] [{sname}] Dòng #{row_idx:<3d} -> ✅ {final_text}", "SUCCESS")
+                                success = True
+                                time.sleep(1.2)
+                                break
+                            else:
+                                log_cb(f"[{processed_count:03d}/{total_links_all:03d}] [{sname}] Dòng #{row_idx:<3d} -> ⚠️ Thử lại slug khác ({toast_msg})...", "WARNING")
+                                time.sleep(0.8)
+                        except Exception as e:
+                            if page.is_closed():
+                                log_cb("❌ Trình duyệt đã bị đóng!", "ERROR")
+                                break
+                            time.sleep(0.8)
+
+                    if not success and not stop_check_cb():
+                        log_cb(f"[{processed_count:03d}/{total_links_all:03d}] [{sname}] Dòng #{row_idx:<3d} -> ❌ Thất bại sau 5 lần thử.", "ERROR")
+
                 if stop_check_cb():
-                    log_cb("⚠️ Đã dừng tiến trình rút gọn.", "WARNING")
                     break
 
-                processed_count += 1
-                progress_cb(processed_count, total_links_all)
-                
-                if original_url in url_cache:
-                    cached_val = url_cache[original_url]
-                    sheet.cell(row=row_idx, column=out_col, value=cached_val)
-                    log_cb(f"[{processed_count:03d}/{total_links_all:03d}] [{sname}] Dòng #{row_idx:<3d} -> ⚡ [DÙNG LẠI] {cached_val}", "INFO")
-                    continue
-
-                success = False
-                for attempt in range(5):
-                    if stop_check_cb():
-                        break
-                    slug = generate_short_slug(original_url, attempt=attempt)
-                    
-                    page.locator("#original-url").fill(original_url)
-                    try:
-                        page.locator("#domain-select").select_option(label=selected_domain)
-                    except Exception:
-                        try:
-                            page.locator("#domain-select").select_option(value=selected_domain)
-                        except Exception:
-                            pass
-
-                    page.locator("#short-path").fill(slug)
-                    time.sleep(0.3)
-
-                    try:
-                        submit_btn = page.locator("#shorten-form button[type='submit']")
-                        with page.expect_response(lambda res: "/api/links" in res.url and res.request.method == "POST", timeout=12000) as resp_info:
-                            submit_btn.click()
-
-                        response = resp_info.value
-                        toast_msg = "Thành công"
-                        try:
-                            toast_elem = page.locator("#toast.show")
-                            toast_elem.wait_for(state="visible", timeout=2500)
-                            toast_msg = toast_elem.inner_text().strip()
-                        except Exception:
-                            pass
-
-                        if response.status in [200, 201]:
-                            res_data = response.json()
-                            created_path = res_data.get("shortPath", slug)
-                            shortened_url = f"https://{selected_domain}/{created_path}"
-                            final_text = f"watch full here 👉: {shortened_url}"
-                            
-                            url_cache[original_url] = final_text
-                            sheet.cell(row=row_idx, column=out_col, value=final_text)
-                            
-                            log_cb(f"[{processed_count:03d}/{total_links_all:03d}] [{sname}] Dòng #{row_idx:<3d} -> ✅ {final_text}", "SUCCESS")
-                            success = True
-                            time.sleep(1.2)
-                            break
-                        else:
-                            log_cb(f"[{processed_count:03d}/{total_links_all:03d}] [{sname}] Dòng #{row_idx:<3d} -> ⚠️ Thử lại slug khác ({toast_msg})...", "WARNING")
-                            time.sleep(0.8)
-                    except Exception as e:
-                        time.sleep(0.8)
-
-                if not success and not stop_check_cb():
-                    log_cb(f"[{processed_count:03d}/{total_links_all:03d}] [{sname}] Dòng #{row_idx:<3d} -> ❌ Thất bại sau 5 lần thử.", "ERROR")
-
-            if stop_check_cb():
-                break
-
-        context.close()
+            context.close()
+        except Exception as e:
+            log_cb(f"❌ Lỗi tự động rút gọn: {e}", "ERROR")
 
     dir_name = os.path.dirname(excel_path)
     base_name = os.path.splitext(os.path.basename(excel_path))[0]

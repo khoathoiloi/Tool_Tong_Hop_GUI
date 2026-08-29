@@ -11,7 +11,7 @@ import zipfile
 import tempfile
 import shutil
 
-APP_VERSION = "2.5.2"
+APP_VERSION = "2.5.3"
 GITHUB_REPO = "khoathoiloi/Tool_Tong_Hop_GUI"
 API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
@@ -20,7 +20,6 @@ def get_app_root_dir():
     if getattr(sys, 'frozen', False):
         return os.path.dirname(sys.executable)
     else:
-        # File này nằm trong core/updater.py -> thư mục gốc là thư mục cha của core
         core_dir = os.path.dirname(os.path.abspath(__file__))
         return os.path.dirname(core_dir)
 
@@ -90,10 +89,6 @@ def check_for_updates(current_version=APP_VERSION, repo_name=GITHUB_REPO):
     return {'has_update': False, 'current_version': current_version}
 
 def download_and_apply_update(download_url, progress_cb=None, log_cb=None):
-    """
-    Tải bản cập nhật ZIP, giải nén vào thư mục tạm, tạo script ghi đè file khi đóng app
-    và tự động khởi động lại ứng dụng với phiên bản mới nhất!
-    """
     if not download_url:
         if log_cb: log_cb("Không tìm thấy link tải bản cập nhật!", "ERROR")
         return False
@@ -142,15 +137,13 @@ def download_and_apply_update(download_url, progress_cb=None, log_cb=None):
             try: os.remove(temp_zip)
             except Exception: pass
 
-    # Kiểm tra xem zip có chứa folder con lồng nhau không
     source_copy_dir = staging_dir
     entries = os.listdir(staging_dir)
     if len(entries) == 1 and os.path.isdir(os.path.join(staging_dir, entries[0])):
         source_copy_dir = os.path.join(staging_dir, entries[0])
 
-    if log_cb: log_cb("🔄 Đang khởi tạo tiến trình ghi đè và tự khởi động lại...", "SUCCESS")
+    if log_cb: log_cb("🔄 Đang kích hoạt tiến trình ghi đè và tự khởi động lại...", "SUCCESS")
 
-    # Xác định file khởi chạy lại
     is_frozen = getattr(sys, 'frozen', False)
     exe_name = "MasterToolHub.exe"
     exe_target = os.path.join(app_root, exe_name)
@@ -158,29 +151,20 @@ def download_and_apply_update(download_url, progress_cb=None, log_cb=None):
 
     relaunch_cmd = f'start "" "{exe_target}"' if (is_frozen or os.path.exists(exe_target)) else f'start "" "{run_bat_target}"'
 
-    # Tạo batch script độc lập để ghi đè file sau khi app đóng
     bat_path = os.path.join(temp_dir, "apply_mastertool_update.bat")
     bat_content = f"""@echo off
-title DANG CAP NHAT PHAN MEM...
+title DANG CAP NHAT MASTER TOOL HUB...
 timeout /t 2 /nobreak > nul
 
-:: Copy đè toàn bộ tệp mới vào thư mục ứng dụng
 xcopy "{source_copy_dir}\\*" "{app_root}\\" /E /Y /I /Q > nul
-
-:: Xóa thư mục tạm staging
 rmdir /s /q "{staging_dir}" > nul
-
-:: Khởi động lại ứng dụng
 {relaunch_cmd}
-
-:: Tự xóa file bat cập nhật
 del "%~f0" > nul
 exit
 """
     with open(bat_path, "w", encoding="utf-8") as f:
         f.write(bat_content)
 
-    # Chạy script cập nhật trong tiến trình độc lập
     if os.name == 'nt':
         creationflags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
         subprocess.Popen(["cmd.exe", "/c", bat_path], creationflags=creationflags, close_fds=True)
