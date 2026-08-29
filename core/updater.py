@@ -11,7 +11,7 @@ import zipfile
 import tempfile
 import shutil
 
-APP_VERSION = "2.5.5"
+APP_VERSION = "2.6.0"
 GITHUB_REPO = "khoathoiloi/Tool_Tong_Hop_GUI"
 API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
@@ -58,7 +58,7 @@ def check_for_updates(current_version=APP_VERSION, repo_name=GITHUB_REPO):
     })
 
     try:
-        with urllib.request.urlopen(req, context=ctx, timeout=8) as response:
+        with urllib.request.urlopen(req, context=ctx, timeout=10) as response:
             if response.status == 200:
                 data = json.loads(response.read().decode('utf-8'))
                 tag_name = data.get('tag_name', '')
@@ -117,10 +117,10 @@ def download_and_apply_update(download_url, progress_cb=None, log_cb=None):
     if log_cb: log_cb(f"⏳ Đang tải bản cập nhật từ: {download_url}...", "INFO")
 
     req = urllib.request.Request(download_url, headers={'User-Agent': 'MasterToolHub-Updater'})
-    with urllib.request.urlopen(req, context=ctx) as resp, open(temp_zip, 'wb') as out_f:
+    with urllib.request.urlopen(req, context=ctx, timeout=120) as resp, open(temp_zip, 'wb') as out_f:
         total_size = int(resp.headers.get('content-length', 0))
         downloaded = 0
-        block_size = 65536
+        block_size = 131072
 
         while True:
             buffer = resp.read(block_size)
@@ -145,10 +145,12 @@ def download_and_apply_update(download_url, progress_cb=None, log_cb=None):
             try: os.remove(temp_zip)
             except Exception: pass
 
+    # Tìm đúng thư mục gốc chứa MasterToolHub.exe trong staging
     source_copy_dir = staging_dir
-    entries = os.listdir(staging_dir)
-    if len(entries) == 1 and os.path.isdir(os.path.join(staging_dir, entries[0])):
-        source_copy_dir = os.path.join(staging_dir, entries[0])
+    for root, dirs, files in os.walk(staging_dir):
+        if "MasterToolHub.exe" in files or ("core" in dirs and "modules" in dirs):
+            source_copy_dir = root
+            break
 
     if log_cb: log_cb("🔄 Đang kích hoạt tiến trình ghi đè và tự khởi động lại...", "SUCCESS")
 
@@ -162,12 +164,14 @@ def download_and_apply_update(download_url, progress_cb=None, log_cb=None):
     bat_path = os.path.join(temp_dir, "apply_mastertool_update.bat")
     bat_content = f"""@echo off
 title DANG CAP NHAT MASTER TOOL HUB...
-timeout /t 2 /nobreak > nul
+ping 127.0.0.1 -n 3 > nul
+taskkill /F /IM MasterToolHub.exe /T > nul 2>&1
+ping 127.0.0.1 -n 2 > nul
 
-xcopy "{source_copy_dir}\\*" "{app_root}\\" /E /Y /I /Q > nul
-rmdir /s /q "{staging_dir}" > nul
+xcopy "{source_copy_dir}\\*" "{app_root}\\" /E /Y /I /Q /R /H /K > nul
+rmdir /s /q "{staging_dir}" > nul 2>&1
 {relaunch_cmd}
-del "%~f0" > nul
+del "%~f0" > nul 2>&1
 exit
 """
     with open(bat_path, "w", encoding="utf-8") as f:

@@ -1,6 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 """
-Module nạp DLLs CUDA và phát hiện GPU NVIDIA cho Faster-Whisper và AI Subtitle
+Module nạp DLLs CUDA động và phát hiện GPU NVIDIA cho Faster-Whisper và AI Subtitle
+Tối ưu hóa chuyên biệt cho card NVIDIA RTX 3060 12GB và tất cả các dòng GPU NVIDIA
 """
 import os
 import sys
@@ -11,12 +12,33 @@ os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
 def setup_cuda_dlls():
     search_dirs = []
+
+    # 1. Thư mục PyInstaller frozen root & _internal
     if hasattr(sys, '_MEIPASS'):
         search_dirs.append(sys._MEIPASS)
         search_dirs.append(os.path.join(sys._MEIPASS, 'nvidia', 'cublas', 'bin'))
         search_dirs.append(os.path.join(sys._MEIPASS, 'nvidia', 'cudnn', 'bin'))
         search_dirs.append(os.path.join(sys._MEIPASS, 'nvidia', 'cuda_runtime', 'bin'))
+        search_dirs.append(os.path.join(sys._MEIPASS, 'ctranslate2'))
 
+    if getattr(sys, 'frozen', False):
+        exe_dir = os.path.dirname(sys.executable)
+        search_dirs.append(exe_dir)
+        search_dirs.append(os.path.join(exe_dir, '_internal'))
+        search_dirs.append(os.path.join(exe_dir, '_internal', 'nvidia', 'cublas', 'bin'))
+        search_dirs.append(os.path.join(exe_dir, '_internal', 'nvidia', 'cudnn', 'bin'))
+        search_dirs.append(os.path.join(exe_dir, '_internal', 'ctranslate2'))
+
+    # 2. Thư mục app root khi chạy từ source
+    try:
+        from core.updater import get_app_root_dir
+        app_root = get_app_root_dir()
+        search_dirs.append(app_root)
+        search_dirs.append(os.path.join(app_root, '_internal'))
+    except Exception:
+        pass
+
+    # 3. Quét tự động site-packages nếu có Python
     try:
         import site
         sp_list = site.getsitepackages() if hasattr(site, 'getsitepackages') else []
@@ -29,17 +51,19 @@ def setup_cuda_dlls():
                     bin_dir = os.path.join(nvidia_base, sub, "bin")
                     if os.path.isdir(bin_dir):
                         search_dirs.append(bin_dir)
+            ct2_base = os.path.join(sp, "ctranslate2")
+            if os.path.isdir(ct2_base):
+                search_dirs.append(ct2_base)
     except Exception:
         pass
 
-    custom_paths = [
-        r"C:\Users\TP\AppData\Local\Programs\Python\Python312\Lib\site-packages\nvidia\cublas\bin",
-        r"C:\Users\TP\AppData\Local\Programs\Python\Python312\Lib\site-packages\nvidia\cudnn\bin",
-        r"C:\Users\TP\AppData\Local\Programs\Python\Python312\Lib\site-packages\nvidia\cuda_runtime\bin",
-        r"C:\Users\TP\AppData\Local\Programs\Python\Python312\Lib\site-packages\nvidia\cuda_nvrtc\bin",
-    ]
-    search_dirs.extend(custom_paths)
+    # 4. Quét CUDA Toolkit hệ thống
+    for cuda_var in ["CUDA_PATH", "CUDA_PATH_V12_0", "CUDA_PATH_V12_1", "CUDA_PATH_V12_2", "CUDA_PATH_V12_4"]:
+        c_p = os.environ.get(cuda_var)
+        if c_p and os.path.isdir(c_p):
+            search_dirs.append(os.path.join(c_p, "bin"))
 
+    # Đăng ký các thư mục DLL với Windows
     for d in search_dirs:
         if os.path.isdir(d):
             try:
@@ -57,7 +81,7 @@ def get_gpu_info():
         "detail": "Đang chạy bằng CPU"
     }
 
-    # 1. Kiểm tra qua CTranslate2 (Faster-Whisper engine)
+    # 1. Kiểm tra nhanh qua CTranslate2
     has_ct2_cuda = False
     try:
         import ctranslate2
@@ -85,12 +109,12 @@ def get_gpu_info():
             info["has_cuda"] = True
             info["device_name"] = name
             info["vram_gb"] = vram_gb
-            info["detail"] = f"{name} ({vram_gb} GB VRAM)"
+            info["detail"] = f"{name} ({vram_gb} GB VRAM) - Sẵn sàng GPU CUDA"
             return info
     except Exception:
         pass
 
-    # 3. Fallback qua torch nếu có
+    # 3. Fallback qua torch
     try:
         import torch
         if torch.cuda.is_available():
