@@ -1,16 +1,32 @@
 # -*- coding: utf-8 -*-
 """
 modules/article_rewriter/cms_publisher.py
-Engine đăng bài tự động lên website CMS với xác thực Token/Cookie và chèn mã nhúng/Embed.
+GOLDEN CMS PUBLISHER: Port nguyên bản kiến trúc đăng bài từ ToolXaoBaiBao_V3 gốc.
+Tự động làm sạch Base URL, hỗ trợ chuẩn endpoint /admin/api/v1/posts và /backend/posts,
+sử dụng requests library và tự động xử lý trùng lặp slug (HTTP 422).
 """
-import time
-import json
+import os
 import re
-import urllib.request
-import urllib.error
-import ssl
+import json
+import time
+import random
+import requests
 from typing import Tuple, Dict, Any, Callable
-from urllib.parse import urljoin
+from urllib.parse import urlparse
+
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
+def art_slugify(text: str) -> str:
+    s = (text or "").lower().strip()
+    s = re.sub(r'[\s_]+', '-', s)
+    s = re.sub(r'[^a-z0-9\-]', '', s)
+    s = re.sub(r'-+', '-', s).strip('-')
+    return s[:180] or "article"
+
+def art_seo_description(body: str) -> str:
+    clean = re.sub(r'<[^>]+>', ' ', body or '')
+    clean = re.sub(r'\s+', ' ', clean).strip()
+    return clean[:200]
 
 class CMSPublisher:
     def __init__(
@@ -21,7 +37,14 @@ class CMSPublisher:
         create_url: str = "",
         log_cb: Callable = None
     ):
-        self.base_url = (base_url or "https://jesusvibe.danhngon.pro").rstrip("/")
+        # Làm sạch base_url chỉ lấy scheme + netloc (ví dụ: https://bodycamtoday.danhngon.pro)
+        raw_base = (base_url or "https://jesusvibe.danhngon.pro").strip()
+        if "://" in raw_base:
+            p = urlparse(raw_base)
+            self.base_url = f"{p.scheme}://{p.netloc}"
+        else:
+            self.base_url = f"https://{raw_base.split('/')[0]}"
+
         self.token = (token or "").strip()
         self.cookie = (cookie or "").strip()
         self.create_url = (create_url or "").strip()
@@ -35,23 +58,18 @@ class CMSPublisher:
         code = embed_code.strip()
         body = html_body.strip()
 
-        if embed_pos == "Sau đoạn đầu":
+        if embed_pos in ("Sau đoạn đầu", "after_first", "sau"):
             idx = body.find("</p>")
             if idx != -1:
                 return body[:idx+4] + "\n" + code + "\n" + body[idx+4:]
             else:
                 return code + "\n" + body
-        elif embed_pos == "Cuối bài":
+        elif embed_pos in ("Cuối bài", "bottom", "cuoi"):
             return body + "\n" + code
-        elif embed_pos == "Đầu bài":
+        elif embed_pos in ("Đầu bài", "top", "dau"):
             return code + "\n" + body
-        elif embed_pos == "Giữa bài":
-            paragraphs = [p for p in body.split("</p>") if p.strip()]
-            if len(paragraphs) > 2:
-                mid = len(paragraphs) // 2
-                paragraphs.insert(mid, "\n" + code + "\n")
-                return "</p>".join(paragraphs) + "</p>"
-            return body + "\n" + code
+        elif embed_pos in ("Cả đầu và cuối", "both"):
+            return code + "\n" + body + "\n" + code
         return body + "\n" + code
 
     def post_article(
@@ -64,94 +82,108 @@ class CMSPublisher:
         art_top: bool = True,
         embed_code: str = "",
         embed_pos: str = "Sau đoạn đầu",
-        custom_endpoint: str = ""
+        custom_endpoint: str = "",
+        image_path: str = ""
     ) -> Tuple[bool, str, str]:
         """
-        Gửi request đăng bài lên CMS qua HTTP POST API.
+        Gửi request đăng bài lên CMS theo chuẩn Tool gốc ToolXaoBaiBao_V3.
         Trả về: (success: bool, article_url_or_id: str, error_msg: str)
         """
-        if not self.base_url:
-            return False, "", "Chưa cấu hình URL website bài báo (base_url)!"
+        base = self.base_url.rstrip("/")
+        if not base:
+            return False, "", "Chưa cấu hình Base URL website!"
 
-        # Chèn mã nhúng vào nội dung bài
         final_body = self.inject_embed(body, embed_code, embed_pos)
+        base_slug = slug or art_slugify(title)
+        seo_desc = art_seo_description(final_body)
 
-        # Chuẩn bị danh sách endpoint thử nghiệm nếu create_url chưa xác định
-        endpoints = []
-        if custom_endpoint:
-            endpoints.append(custom_endpoint)
-        if self.create_url:
-            endpoints.append(self.create_url)
-        endpoints.extend([
-            f"{self.base_url}/api/blogs/store",
-            f"{self.base_url}/admin/blogs/store",
-            f"{self.base_url}/admin/articles/create",
-            f"{self.base_url}/api/articles",
-            f"{self.base_url}/admin/posts/store"
-        ])
-
-        payload = {
+        fields = {
+            "_token": self.token,
+            "name": title,
             "title": title,
-            "slug": slug or re.sub(r'[^a-zA-Z0-9]+', '-', title).strip('-').lower(),
+            "slug": base_slug,
+            "description": seo_desc,
             "content": final_body,
-            "body": final_body,
-            "is_display": 1 if art_display else 0,
-            "is_home": 1 if art_home else 0,
-            "is_top": 1 if art_top else 0,
-            "status": "published",
-            "_token": self.token
+            "is_featured": "1" if art_top else "0",
+            "is_sticky": "1" if art_top else "0",
+            "is_home": "1" if art_home else "0",
+            "status": "published" if art_display else "draft",
+            "format_type": "default"
         }
+
+        # Xác định URL đăng bài
+        if custom_endpoint:
+            url = custom_endpoint if custom_endpoint.startswith("http") else f"{base}{custom_endpoint}"
+        elif self.create_url:
+            url = self.create_url if self.create_url.startswith("http") else f"{base}{self.create_url}"
+        else:
+            url = f"{base}/admin/api/v1/posts"
 
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-            "Content-Type": "application/json",
-            "Accept": "application/json, text/plain, */*",
-            "Origin": self.base_url,
-            "Referer": f"{self.base_url}/"
+            "accept": "application/json",
+            "x-csrf-token": self.token,
+            "x-requested-with": "XMLHttpRequest",
+            "origin": base,
+            "referer": f"{base}/admin/posts/new",
+            "user-agent": USER_AGENT,
+            "cookie": self.cookie
         }
 
-        if self.token:
-            headers["X-CSRF-TOKEN"] = self.token
-            headers["X-XSRF-TOKEN"] = self.token
-        if self.cookie:
-            headers["Cookie"] = self.cookie
+        # Trích xuất XSRF-TOKEN nếu có trong cookie
+        m_xsrf = re.search(r'XSRF-TOKEN=([^;]+)', self.cookie or "")
+        if m_xsrf and not self.token:
+            headers["x-xsrf-token"] = m_xsrf.group(1).strip()
 
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+        self.log(f"Đang gửi bài viết tới CMS Endpoint: {url}...", "INFO")
 
-        json_bytes = json.dumps(payload).encode("utf-8")
-
-        for ep in endpoints:
+        for retry in range(1, 4):
             try:
-                self.log(f"Đang gửi bài viết tới CMS Endpoint: {ep}...", "INFO")
-                req = urllib.request.Request(ep, data=json_bytes, headers=headers, method="POST")
-                
-                with urllib.request.urlopen(req, context=ctx, timeout=30) as resp:
-                    resp_body = resp.read().decode("utf-8", errors="ignore")
-                    status_code = resp.status
+                r = requests.post(url, headers=headers, data=fields, timeout=120)
 
-                    # Parse JSON response nếu có
+                # Nếu endpoint chính bị 404 hoặc 405, chuyển sang endpoint fallback /backend/posts
+                if r.status_code in (404, 405) and "/admin/api/v1/posts" in url:
+                    fallback_url = f"{base}/backend/posts"
+                    headers["referer"] = f"{base}/backend/posts/create"
+                    self.log(f"⚠️ Endpoint {url} không hỗ trợ (HTTP {r.status_code}), chuyển sang fallback: {fallback_url}...", "WARNING")
+                    time.sleep(1.0)
+                    r = requests.post(fallback_url, headers=headers, data=fields, timeout=120)
+                    url = fallback_url
+
+                # Xử lý tự động khi trùng Slug (HTTP 422)
+                st_retry = 0
+                while r.status_code == 422 and st_retry < 5:
+                    resp_text = r.text.lower()
+                    if "slug" in resp_text or "already been taken" in resp_text:
+                        st_retry += 1
+                        new_slug = f"{base_slug}-{random.randint(1000, 99999)}"
+                        fields["slug"] = new_slug
+                        self.log(f"⚠️ Slug bị trùng, tự động đổi sang: {new_slug}...", "WARNING")
+                        r = requests.post(url, headers=headers, data=fields, timeout=120)
+                    else:
+                        break
+
+                if 200 <= r.status_code < 300:
                     try:
-                        res_json = json.loads(resp_body)
-                        if res_json.get("success") or res_json.get("status") == "success" or res_json.get("id"):
-                            art_id = str(res_json.get("id", "") or res_json.get("data", {}).get("id", "OK"))
-                            self.log(f"✅ Đăng bài thành công lên CMS! (ID: {art_id})", "SUCCESS")
-                            return True, art_id, ""
+                        resp_json = r.json()
+                        art_id = str(resp_json.get("id") or resp_json.get("data", {}).get("id") or fields.get("slug"))
                     except Exception:
-                        pass
+                        art_id = fields.get("slug")
 
-                    if 200 <= status_code < 300:
-                        self.log(f"✅ Đăng bài thành công! (HTTP {status_code})", "SUCCESS")
-                        return True, ep, ""
+                    public_link = f"{base}/blog/{fields.get('slug', base_slug)}"
+                    self.log(f"✅ Đăng bài thành công lên CMS! Link: {public_link}", "SUCCESS")
+                    return True, public_link, ""
 
-            except urllib.error.HTTPError as he:
-                if he.code in (401, 419):
-                    self.log(f"❌ Session hoặc CSRF Token đã hết hạn (HTTP {he.code})!", "ERROR")
-                    return False, "", f"Lỗi xác thực HTTP {he.code}: Vui lòng bấm 'Lấy Cookie/Token' lại."
-                elif he.code != 404:
-                    self.log(f"⚠️ Endpoint {ep} trả về HTTP {he.code}", "WARNING")
+                elif r.status_code in (401, 419):
+                    self.log(f"❌ Session hoặc CSRF Token đã hết hạn (HTTP {r.status_code})!", "ERROR")
+                    return False, "", f"Lỗi xác thực HTTP {r.status_code}: Token/Cookie đã hết hạn, vui lòng bấm 'Lấy Cookie/Token' lại."
+
+                else:
+                    self.log(f"⚠️ CMS trả về HTTP {r.status_code}: {r.text[:200]}", "WARNING")
+                    time.sleep(2.0)
+
             except Exception as e:
-                self.log(f"Lỗi gửi request: {e}", "WARNING")
+                self.log(f"Lỗi kết nối tới CMS (Lần {retry}): {e}", "WARNING")
+                time.sleep(2.0)
 
-        return False, "", "Không thể đăng bài lên các Endpoint CMS của website (Vui lòng kiểm tra lại Token/Cookie)!"
+        return False, "", f"Không thể đăng bài lên CMS sau 3 lần thử (HTTP {getattr(r, 'status_code', 0)})!"
+
