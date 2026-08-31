@@ -30,10 +30,14 @@ class ArticleRewriterView(ttk.Frame):
         self._update_status_badges()
 
     def _init_variables(self):
-        # Gemini vars
+        # AI Provider vars (Gemini & OpenAI / 9Router)
+        self.v_ai_provider = tk.StringVar(value="Google Gemini")
         self.v_gemini_key = tk.StringVar()
         self.v_gemini_model = tk.StringVar(value="gemini-3.5-flash-lite")
-        self.v_gemini_lang = tk.StringVar(value="English")
+        self.v_openai_base_url = tk.StringVar(value="https://api.9router.com/v1")
+        self.v_openai_key = tk.StringVar()
+        self.v_openai_model = tk.StringVar(value="gpt-4o-mini")
+        self.v_ai_lang = tk.StringVar(value="English")
         self.v_custom_prompt = tk.StringVar()
 
         # Website vars
@@ -284,22 +288,53 @@ class ArticleRewriterView(ttk.Frame):
         scrollbar.pack(side="right", fill="y")
         scrollable_frame.grid_columnconfigure(0, weight=1)
 
-        # Section 1: Cài đặt Gemini AI
-        sec_ai = tk.LabelFrame(scrollable_frame, text=" 🤖 Cấu Hình AI Gemini ", font=("Segoe UI", 10, "bold"), bg=THEME["sidebar"], fg=THEME["accent"], padx=10, pady=8)
+        # Section 1: Cài đặt AI (Multi-Provider: Gemini & 9Router)
+        sec_ai = tk.LabelFrame(scrollable_frame, text=" 🤖 Cấu Hình AI (Gemini / 9Router) ", font=("Segoe UI", 10, "bold"), bg=THEME["sidebar"], fg=THEME["accent"], padx=10, pady=8)
         sec_ai.grid(row=0, column=0, sticky="ew", pady=(0, 10))
         sec_ai.grid_columnconfigure(1, weight=1)
 
-        tk.Label(sec_ai, text="API Key:", font=("Segoe UI", 9), bg=THEME["sidebar"], fg=THEME["fg_text"]).grid(row=0, column=0, sticky="w", pady=3)
-        self.ent_api_key = tk.Entry(sec_ai, textvariable=self.v_gemini_key, show="*", font=("Segoe UI", 9), bg=THEME["input"], fg=THEME["fg_text"], relief="flat")
-        self.ent_api_key.grid(row=0, column=1, sticky="ew", padx=(5, 0), pady=3)
+        tk.Label(sec_ai, text="Nhà cung cấp:", font=("Segoe UI", 9, "bold"), bg=THEME["sidebar"], fg=THEME["fg_text"]).grid(row=0, column=0, sticky="w", pady=3)
+        self.cb_provider = ttk.Combobox(sec_ai, textvariable=self.v_ai_provider, values=["Google Gemini", "OpenAI / 9Router"], font=("Segoe UI", 9), state="readonly")
+        self.cb_provider.grid(row=0, column=1, sticky="ew", padx=(5, 0), pady=3)
+        self.cb_provider.bind("<<ComboboxSelected>>", lambda e: self._on_provider_changed())
 
-        tk.Label(sec_ai, text="Model:", font=("Segoe UI", 9), bg=THEME["sidebar"], fg=THEME["fg_text"]).grid(row=1, column=0, sticky="w", pady=3)
-        cb_model = ttk.Combobox(sec_ai, textvariable=self.v_gemini_model, values=["gemini-3.5-flash-lite", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"], font=("Segoe UI", 9), state="readonly")
-        cb_model.grid(row=1, column=1, sticky="ew", padx=(5, 0), pady=3)
+        # Subframe cho Google Gemini
+        self.frame_gemini = tk.Frame(sec_ai, bg=THEME["sidebar"])
+        self.frame_gemini.grid(row=1, column=0, columnspan=2, sticky="ew")
+        self.frame_gemini.grid_columnconfigure(1, weight=1)
 
-        tk.Label(sec_ai, text="Ngôn Ngữ:", font=("Segoe UI", 9), bg=THEME["sidebar"], fg=THEME["fg_text"]).grid(row=2, column=0, sticky="w", pady=3)
-        cb_lang = ttk.Combobox(sec_ai, textvariable=self.v_gemini_lang, values=["English", "Tiếng Việt", "Japanese", "Spanish", "French", "German"], font=("Segoe UI", 9), state="readonly")
-        cb_lang.grid(row=2, column=1, sticky="ew", padx=(5, 0), pady=3)
+        tk.Label(self.frame_gemini, text="Gemini Key:", font=("Segoe UI", 9), bg=THEME["sidebar"], fg=THEME["fg_text"]).grid(row=0, column=0, sticky="w", pady=3)
+        self.ent_gemini_key = tk.Entry(self.frame_gemini, textvariable=self.v_gemini_key, show="*", font=("Segoe UI", 9), bg=THEME["input"], fg=THEME["fg_text"], relief="flat")
+        self.ent_gemini_key.grid(row=0, column=1, sticky="ew", padx=(5, 0), pady=3)
+
+        tk.Label(self.frame_gemini, text="Gemini Model:", font=("Segoe UI", 9), bg=THEME["sidebar"], fg=THEME["fg_text"]).grid(row=1, column=0, sticky="w", pady=3)
+        cb_gemini_model = ttk.Combobox(self.frame_gemini, textvariable=self.v_gemini_model, values=["gemini-3.5-flash-lite", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"], font=("Segoe UI", 9), state="readonly")
+        cb_gemini_model.grid(row=1, column=1, sticky="ew", padx=(5, 0), pady=3)
+
+        # Subframe cho OpenAI / 9Router
+        self.frame_openai = tk.Frame(sec_ai, bg=THEME["sidebar"])
+        self.frame_openai.grid(row=2, column=0, columnspan=2, sticky="ew")
+        self.frame_openai.grid_columnconfigure(1, weight=1)
+
+        tk.Label(self.frame_openai, text="Base URL:", font=("Segoe UI", 9), bg=THEME["sidebar"], fg=THEME["fg_text"]).grid(row=0, column=0, sticky="w", pady=3)
+        tk.Entry(self.frame_openai, textvariable=self.v_openai_base_url, font=("Segoe UI", 9), bg=THEME["input"], fg=THEME["fg_text"], relief="flat").grid(row=0, column=1, sticky="ew", padx=(5, 0), pady=3)
+
+        tk.Label(self.frame_openai, text="9Router Key:", font=("Segoe UI", 9), bg=THEME["sidebar"], fg=THEME["fg_text"]).grid(row=1, column=0, sticky="w", pady=3)
+        self.ent_openai_key = tk.Entry(self.frame_openai, textvariable=self.v_openai_key, show="*", font=("Segoe UI", 9), bg=THEME["input"], fg=THEME["fg_text"], relief="flat")
+        self.ent_openai_key.grid(row=1, column=1, sticky="ew", padx=(5, 0), pady=3)
+
+        tk.Label(self.frame_openai, text="Model:", font=("Segoe UI", 9), bg=THEME["sidebar"], fg=THEME["fg_text"]).grid(row=2, column=0, sticky="w", pady=3)
+        cb_openai_model = ttk.Combobox(self.frame_openai, textvariable=self.v_openai_model, values=["gpt-4o-mini", "gpt-4o", "deepseek-chat", "deepseek-v3", "claude-3-5-sonnet", "gemini-1.5-flash", "gemini-2.0-flash", "qwen-2.5-72b"], font=("Segoe UI", 9))
+        cb_openai_model.grid(row=2, column=1, sticky="ew", padx=(5, 0), pady=3)
+
+        # Ngôn ngữ dịch bài chung
+        lang_frame = tk.Frame(sec_ai, bg=THEME["sidebar"])
+        lang_frame.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(4, 0))
+        lang_frame.grid_columnconfigure(1, weight=1)
+
+        tk.Label(lang_frame, text="Ngôn Ngữ Đích:", font=("Segoe UI", 9, "bold"), bg=THEME["sidebar"], fg=THEME["fg_text"]).grid(row=0, column=0, sticky="w", pady=3)
+        cb_lang = ttk.Combobox(lang_frame, textvariable=self.v_ai_lang, values=["English", "Tiếng Việt", "Japanese", "Spanish", "French", "German"], font=("Segoe UI", 9), state="readonly")
+        cb_lang.grid(row=0, column=1, sticky="ew", padx=(5, 0), pady=3)
 
         # Section 2: Cài đặt Website CMS
         sec_web = tk.LabelFrame(scrollable_frame, text=" 🌐 Cấu Hình Website CMS ", font=("Segoe UI", 10, "bold"), bg=THEME["sidebar"], fg=THEME["accent"], padx=10, pady=8)
@@ -365,12 +400,32 @@ class ArticleRewriterView(ttk.Frame):
         )
         btn_save.grid(row=4, column=0, sticky="ew", pady=(0, 15))
 
+    def _on_provider_changed(self):
+        prov = self.v_ai_provider.get()
+        if "OpenAI" in prov or "9Router" in prov:
+            self.frame_gemini.grid_remove()
+            self.frame_openai.grid()
+        else:
+            self.frame_openai.grid_remove()
+            self.frame_gemini.grid()
+        self._update_status_badges()
+
     def _load_values_to_ui(self):
-        g = self.cfg_mgr.get("gemini", {})
-        self.v_gemini_key.set(g.get("api_key", ""))
-        self.v_gemini_model.set(g.get("model", "gemini-3.5-flash-lite"))
-        self.v_gemini_lang.set(g.get("language", "English"))
-        self.v_custom_prompt.set(g.get("custom_prompt", ""))
+        ai = self.cfg_mgr.get("ai", {})
+        prov = ai.get("provider", "gemini")
+        if "openai" in prov or "9router" in prov:
+            self.v_ai_provider.set("OpenAI / 9Router")
+        else:
+            self.v_ai_provider.set("Google Gemini")
+
+        gemini_legacy = self.cfg_mgr.get("gemini", {})
+        self.v_gemini_key.set(ai.get("gemini_api_key") or gemini_legacy.get("api_key", ""))
+        self.v_gemini_model.set(ai.get("gemini_model") or gemini_legacy.get("model", "gemini-3.5-flash-lite"))
+        self.v_openai_base_url.set(ai.get("openai_base_url", "https://api.9router.com/v1"))
+        self.v_openai_key.set(ai.get("openai_api_key", ""))
+        self.v_openai_model.set(ai.get("openai_model", "gpt-4o-mini"))
+        self.v_ai_lang.set(ai.get("language") or gemini_legacy.get("language", "English"))
+        self.v_custom_prompt.set(ai.get("custom_prompt") or gemini_legacy.get("custom_prompt", ""))
 
         w = self.cfg_mgr.get("website", {})
         self.v_base_url.set(w.get("base_url", "https://jesusvibe.danhngon.pro"))
@@ -392,12 +447,27 @@ class ArticleRewriterView(ttk.Frame):
         self.v_threads.set(str(p.get("n_threads", 3)))
         self.v_delay.set(str(p.get("delay", 5)))
 
+        self._on_provider_changed()
+
     def _collect_config_from_ui(self) -> Dict[str, Any]:
+        prov_raw = self.v_ai_provider.get()
+        provider_code = "openai_9router" if ("openai" in prov_raw.lower() or "9router" in prov_raw.lower()) else "gemini"
+
         return {
+            "ai": {
+                "provider": provider_code,
+                "gemini_api_key": self.v_gemini_key.get().strip(),
+                "gemini_model": self.v_gemini_model.get().strip(),
+                "openai_base_url": self.v_openai_base_url.get().strip(),
+                "openai_api_key": self.v_openai_key.get().strip(),
+                "openai_model": self.v_openai_model.get().strip(),
+                "language": self.v_ai_lang.get().strip(),
+                "custom_prompt": self.v_custom_prompt.get().strip()
+            },
             "gemini": {
                 "api_key": self.v_gemini_key.get().strip(),
                 "model": self.v_gemini_model.get().strip(),
-                "language": self.v_gemini_lang.get().strip(),
+                "language": self.v_ai_lang.get().strip(),
                 "custom_prompt": self.v_custom_prompt.get().strip()
             },
             "website": {
@@ -434,11 +504,17 @@ class ArticleRewriterView(ttk.Frame):
         messagebox.showinfo("Cấu Hình", "Đã lưu cài đặt Module Xào Bài Báo!")
 
     def _update_status_badges(self):
-        # Check Gemini Key
-        if self.v_gemini_key.get().strip():
-            self.lbl_badge_gemini.configure(text="Gemini: Đã Cấu Hình", fg=THEME["success"])
+        prov = self.v_ai_provider.get()
+        if "OpenAI" in prov or "9Router" in prov:
+            if self.v_openai_key.get().strip():
+                self.lbl_badge_gemini.configure(text="9Router: Đã Có Key", fg=THEME["success"])
+            else:
+                self.lbl_badge_gemini.configure(text="9Router: Chưa Có Key", fg=THEME["warning"])
         else:
-            self.lbl_badge_gemini.configure(text="Gemini: Chưa Có Key", fg=THEME["warning"])
+            if self.v_gemini_key.get().strip():
+                self.lbl_badge_gemini.configure(text="Gemini: Đã Có Key", fg=THEME["success"])
+            else:
+                self.lbl_badge_gemini.configure(text="Gemini: Chưa Có Key", fg=THEME["warning"])
 
         # Check Auth Session
         if self.v_cookie.get().strip() or self.v_csrf_token.get().strip():
@@ -455,7 +531,6 @@ class ArticleRewriterView(ttk.Frame):
             return
         try:
             if file_path.endswith(".docx"):
-                # Thử đọc qua docx nếu có
                 try:
                     import docx
                     doc = docx.Document(file_path)
@@ -479,7 +554,6 @@ class ArticleRewriterView(ttk.Frame):
             messagebox.showwarning("Cảnh Báo", "Vui lòng nhập hoặc nạp nội dung bài viết trước!")
             return
 
-        # Phân tách bài viết qua ký tự '---'
         articles = [a.strip() for a in raw_text.split("---") if a.strip()]
         if not articles:
             articles = [raw_text]
@@ -550,9 +624,17 @@ class ArticleRewriterView(ttk.Frame):
             return
 
         cfg = self._collect_config_from_ui()
-        if not cfg.get("gemini", {}).get("api_key"):
-            messagebox.showwarning("Cảnh Báo", "Chưa nhập Gemini API Key trong bảng Cài đặt bên phải!")
-            return
+        ai_cfg = cfg.get("ai", {})
+        prov = ai_cfg.get("provider", "gemini")
+
+        if prov in ("openai", "openai_9router", "9router"):
+            if not ai_cfg.get("openai_api_key"):
+                messagebox.showwarning("Cảnh Báo", "Chưa nhập 9Router API Key trong bảng Cài đặt bên phải!")
+                return
+        else:
+            if not ai_cfg.get("gemini_api_key"):
+                messagebox.showwarning("Cảnh Báo", "Chưa nhập Gemini API Key trong bảng Cài đặt bên phải!")
+                return
 
         # Lưu cấu hình hiện tại
         self.cfg_mgr.save(cfg)
@@ -560,9 +642,8 @@ class ArticleRewriterView(ttk.Frame):
         # Lấy danh sách nội dung từ Treeview
         contents = []
         for c in children:
-            # Lưu tạm nội dung từ title hoặc text
             item_vals = self.tree.item(c)["values"]
-            contents.append(item_vals[2]) # Content or Title placeholder
+            contents.append(item_vals[2])
 
         self.btn_rewrite_only.configure(state=tk.DISABLED)
         self.btn_rewrite_and_post.configure(state=tk.DISABLED)

@@ -9,6 +9,16 @@ import shutil
 from typing import Dict, Any
 
 DEFAULT_CONFIG: Dict[str, Any] = {
+    "ai": {
+        "provider": "gemini",  # "gemini" hoặc "openai_9router"
+        "gemini_api_key": "",
+        "gemini_model": "gemini-3.5-flash-lite",
+        "openai_base_url": "https://api.9router.com/v1",
+        "openai_api_key": "",
+        "openai_model": "gpt-4o-mini",
+        "language": "English",
+        "custom_prompt": ""
+    },
     "gemini": {
         "api_key": "",
         "model": "gemini-3.5-flash-lite",

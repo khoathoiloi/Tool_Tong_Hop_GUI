@@ -88,14 +88,27 @@ class ArticleWorker:
         threading.Thread(target=self._monitor_completion, daemon=True).start()
 
     def _worker_loop(self, thread_id: int, mode: str):
-        gemini_cfg = self.config.get("gemini", {})
+        ai_cfg = self.config.get("ai", {})
+        provider = ai_cfg.get("provider", "gemini")
+        if provider in ("openai", "openai_9router", "9router"):
+            api_key = ai_cfg.get("openai_api_key", "")
+            model = ai_cfg.get("openai_model", "gpt-4o-mini")
+            base_url = ai_cfg.get("openai_base_url", "https://api.9router.com/v1")
+        else:
+            gemini_legacy = self.config.get("gemini", {})
+            api_key = ai_cfg.get("gemini_api_key") or gemini_legacy.get("api_key", "")
+            model = ai_cfg.get("gemini_model") or gemini_legacy.get("model", "gemini-3.5-flash-lite")
+            base_url = ""
+
         website_cfg = self.config.get("website", {})
         art_cfg = self.config.get("article", {})
         delay_sec = int(self.config.get("performance", {}).get("delay", 5))
 
-        gemini = GeminiEngine(
-            api_key=gemini_cfg.get("api_key", ""),
-            model=gemini_cfg.get("model", "gemini-3.5-flash-lite"),
+        ai_engine = GeminiEngine(
+            provider=provider,
+            api_key=api_key,
+            model=model,
+            base_url=base_url,
             log_cb=self.log
         )
 
@@ -128,20 +141,24 @@ class ArticleWorker:
                 self.task_queue.task_done()
                 continue
 
-            # Bước 1: Gemini Rewrite
+            # Bước 1: AI Rewrite
             item.status = "Rewriting"
             self.on_item_updated(item)
-            self.log(f"[T{thread_id}] [Bài #{item.id:03d}] Bắt đầu xào bài qua AI Gemini...", "INFO")
+            provider_label = "9Router/OpenAI" if provider in ("openai", "openai_9router", "9router") else "Google Gemini"
+            self.log(f"[T{thread_id}] [Bài #{item.id:03d}] Bắt đầu xào bài qua AI ({provider_label} - {model})...", "INFO")
 
-            ok, title, body, err = gemini.rewrite_article(
+            target_lang = ai_cfg.get("language") or self.config.get("gemini", {}).get("language", "English")
+            custom_prompt = ai_cfg.get("custom_prompt") or self.config.get("gemini", {}).get("custom_prompt", "")
+
+            ok, title, body, err = ai_engine.rewrite_article(
                 original_text=item.content,
-                target_language=gemini_cfg.get("language", "English"),
-                custom_prompt=gemini_cfg.get("custom_prompt", "")
+                target_language=target_lang,
+                custom_prompt=custom_prompt
             )
 
             if not ok:
                 item.status = "Failed"
-                item.error = f"Lỗi Gemini: {err}"
+                item.error = f"Lỗi AI ({provider_label}): {err}"
                 self.log(f"❌ [T{thread_id}] [Bài #{item.id:03d}] Xào bài thất bại: {err}", "ERROR")
                 self.on_item_updated(item)
                 self.task_queue.task_done()
