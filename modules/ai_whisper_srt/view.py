@@ -96,9 +96,7 @@ class AIWhisperSRTView(tk.Frame):
         self.cbo_model = ttk.Combobox(r_ai1, values=[
             'large-v3-turbo (Khuyên dùng - Siêu tốc & Chuẩn nhất)',
             'large-v3 (Mô hình lớn đầy đủ)',
-            'medium',
-            'small',
-            'base'
+            'medium'
         ], state='readonly', width=38)
         self.cbo_model.current(0)
         self.cbo_model.pack(side=tk.LEFT, padx=(0, 15))
@@ -223,29 +221,50 @@ class AIWhisperSRTView(tk.Frame):
         self.btn_download_current.config(state=tk.DISABLED)
         self.progress['value'] = 0
 
+        def _safe_ui_log(msg, lvl='INFO'):
+            try:
+                self.logger.log(msg, lvl)
+            except Exception:
+                pass
+
         def _worker():
+            success_count = 0
+            skipped_count = 0
+            failed_count = 0
             try:
                 total = len(models_to_download)
-                self.logger.info(f"--- BẮT ĐẦU TẢI {total} AI MODEL VỀ THƯ MỤC models/ ---")
+                _safe_ui_log(f"--- BẮT ĐẦU TẢI {total} AI MODEL VỀ THƯ MỤC models/ ---", "HIGHLIGHT")
                 for idx, m_name in enumerate(models_to_download, 1):
-                    if is_model_downloaded(m_name):
-                        self.logger.info(f"[{idx}/{total}] [✓] Model [{m_name}] đã có sẵn trong máy, bỏ qua.")
-                        self.progress['value'] = int(idx / total * 100)
-                        continue
+                    try:
+                        if is_model_downloaded(m_name):
+                            _safe_ui_log(f"[{idx}/{total}] [✓] Model [{m_name}] đã có sẵn trong máy, bỏ qua.", "INFO")
+                            skipped_count += 1
+                            self.progress['value'] = int(idx / total * 100)
+                            continue
 
-                    self.logger.info(f"[{idx}/{total}] ⏳ Đang tải Model [{m_name}]...")
-                    ok = download_model_to_local(m_name, log_cb=self.logger.info)
-                    if ok:
-                        self.logger.success(f"[{idx}/{total}] 🎉 Tải thành công Model [{m_name}]!")
-                    else:
-                        self.logger.error(f"[{idx}/{total}] ❌ Tải thất bại Model [{m_name}].")
+                        _safe_ui_log(f"[{idx}/{total}] ⏳ Đang tải Model [{m_name}]...", "INFO")
+                        ok = download_model_to_local(m_name, log_cb=_safe_ui_log)
+                        if ok:
+                            success_count += 1
+                            _safe_ui_log(f"[{idx}/{total}] 🎉 Tải thành công Model [{m_name}]!", "SUCCESS")
+                        else:
+                            failed_count += 1
+                            _safe_ui_log(f"[{idx}/{total}] ❌ Tải thất bại Model [{m_name}].", "ERROR")
+                    except Exception as model_err:
+                        failed_count += 1
+                        _safe_ui_log(f"[{idx}/{total}] ❌ Lỗi xử lý Model [{m_name}]: {model_err}", "ERROR")
 
                     self.progress['value'] = int(idx / total * 100)
 
-                self.logger.success("✅ HOÀN THÀNH TIẾN TRÌNH TẢI MODEL!")
-                messagebox.showinfo("Thành Công", "Đã tải xong toàn bộ AI Model vào thư mục models/!")
+                summary_msg = f"Tiến trình kết thúc! Thành công: {success_count}/{total}, Bỏ qua: {skipped_count}/{total}, Thất bại: {failed_count}/{total}."
+                if failed_count == 0:
+                    _safe_ui_log(f"✅ {summary_msg}", "SUCCESS")
+                    messagebox.showinfo("Thành Công", f"Tất cả Model đã sẵn sàng trong thư mục models/!\n({summary_msg})")
+                else:
+                    _safe_ui_log(f"⚠️ {summary_msg}", "WARNING")
+                    messagebox.showwarning("Cảnh Báo", f"Có {failed_count} model tải không thành công.\n({summary_msg})")
             except Exception as e:
-                self.logger.error(f"Lỗi tiến trình tải: {e}")
+                _safe_ui_log(f"Lỗi tiến trình tải: {e}", "ERROR")
             finally:
                 self.is_downloading_models = False
                 self.btn_download_all.config(state=tk.NORMAL)

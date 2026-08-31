@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 Module Quản Lý & Tải Trọn Gói AI Model cho Faster-Whisper
 Hỗ trợ lưu trữ Offline vào thư mục models/ của Tool
@@ -38,24 +38,6 @@ SUPPORTED_MODELS = {
         "vram_rec": "4GB VRAM",
         "accuracy": "⭐⭐⭐⭐ (Rất tốt)",
         "speed": "⚡⚡⚡⚡ (Nhanh)"
-    },
-    "small": {
-        "name": "small",
-        "label": "small (Mô hình nhẹ)",
-        "repo_id": "Systran/faster-whisper-small",
-        "size_mb": 480,
-        "vram_rec": "2GB VRAM",
-        "accuracy": "⭐⭐⭐ (Tốt)",
-        "speed": "⚡⚡⚡⚡⚡ (Rất nhanh)"
-    },
-    "base": {
-        "name": "base",
-        "label": "base (Mô hình siêu nhẹ)",
-        "repo_id": "Systran/faster-whisper-base",
-        "size_mb": 145,
-        "vram_rec": "1GB VRAM",
-        "accuracy": "⭐⭐ (Cơ bản)",
-        "speed": "⚡⚡⚡⚡⚡ (Cực nhanh)"
     }
 }
 
@@ -111,39 +93,60 @@ def get_all_models_status() -> List[Dict]:
 def download_model_to_local(
     model_name: str, 
     progress_cb: Optional[Callable[[str, int, int], None]] = None,
-    log_cb: Optional[Callable[[str, str], None]] = None,
+    log_cb: Optional[Callable] = None,
     stop_check_cb: Optional[Callable[[], bool]] = None
 ) -> bool:
-    """Tải model về thư mục models/ của Tool"""
+    """Tải model về thư mục models/ của Tool với kiểm tra xác thực và fallback an toàn"""
     import faster_whisper
     
-    base_dir = get_models_base_dir()
-    if log_cb:
-        log_cb(f"🚀 Bắt đầu tải Model [{model_name}] vào: {base_dir}...", "INFO")
+    def _safe_log(msg: str, level: str = "INFO"):
+        if log_cb:
+            try:
+                log_cb(msg, level)
+            except TypeError:
+                try:
+                    log_cb(msg)
+                except Exception:
+                    pass
+            except Exception:
+                pass
 
+    base_dir = get_models_base_dir()
+    _safe_log(f"🚀 Bắt đầu tải Model [{model_name}] vào: {base_dir}...", "INFO")
+
+    dest_dir = str(base_dir / model_name)
+    success = False
+
+    # 1. Thử tải qua API chuẩn của faster_whisper
     try:
-        dest_dir = str(base_dir / model_name)
         download_path = faster_whisper.download_model(
             model_name,
             output_dir=dest_dir
         )
-        if log_cb:
-            log_cb(f"✅ Tải thành công Model [{model_name}]! Đã sẵn sàng chạy 100% Offline.", "SUCCESS")
-        return True
-    except Exception as e:
+        if is_model_downloaded(model_name):
+            success = True
+    except Exception as e1:
+        _safe_log(f"⚠️ faster-whisper direct download gặp sự cố ({e1}), đang chuyển sang HuggingFace Hub snapshot...", "WARNING")
+
+    # 2. Fallback qua snapshot_download của huggingface_hub nếu phương thức 1 lỗi
+    if not success:
         try:
             from huggingface_hub import snapshot_download
             repo_id = SUPPORTED_MODELS.get(model_name, {}).get("repo_id", f"Systran/faster-whisper-{model_name}")
-            dest_dir = str(base_dir / model_name)
             snapshot_download(
                 repo_id=repo_id,
                 local_dir=dest_dir,
                 local_dir_use_symlinks=False
             )
-            if log_cb:
-                log_cb(f"✅ Tải thành công Model [{model_name}] qua HuggingFace Hub!", "SUCCESS")
-            return True
+            if is_model_downloaded(model_name):
+                success = True
         except Exception as e2:
-            if log_cb:
-                log_cb(f"❌ Lỗi tải Model [{model_name}]: {e2}", "ERROR")
-            return False
+            _safe_log(f"❌ Lỗi tải Model [{model_name}] qua HuggingFace Hub: {e2}", "ERROR")
+
+    # 3. Xác thực cuối cùng
+    if success and is_model_downloaded(model_name):
+        _safe_log(f"✅ Tải thành công Model [{model_name}]! Đã sẵn sàng chạy 100% Offline.", "SUCCESS")
+        return True
+    else:
+        _safe_log(f"❌ Tải thất bại hoặc file Model [{model_name}] không đầy đủ cấu trúc.", "ERROR")
+        return False

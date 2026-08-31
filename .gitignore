@@ -1,4 +1,4 @@
-﻿__pycache__/
+__pycache__/
 *.py[cod]
 *$py.class
 *.spec
@@ -9,3 +9,4 @@ user_data/
 find_recents.py
 test*.py
 tmp*
+models/
