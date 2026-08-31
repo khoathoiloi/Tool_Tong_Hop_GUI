@@ -34,7 +34,7 @@ class ArticleRewriterView(ttk.Frame):
         # AI Provider vars (Gemini & OpenAI / 9Router)
         self.v_ai_provider = tk.StringVar(value="Google Gemini")
         self.v_gemini_key = tk.StringVar()
-        self.v_gemini_model = tk.StringVar(value="gemini-3.7-flash")
+        self.v_gemini_model = tk.StringVar(value="gemini-3.5-flash-lite")
         self.v_openai_base_url = tk.StringVar(value="https://api.9router.com/v1")
         self.v_openai_key = tk.StringVar()
         self.v_openai_model = tk.StringVar(value="gpt-4o-mini")
@@ -316,7 +316,7 @@ class ArticleRewriterView(ttk.Frame):
         self.cb_gemini_model = ttk.Combobox(
             model_sub,
             textvariable=self.v_gemini_model,
-            values=["gemini-3.7-flash", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"],
+            values=["gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.7-flash"],
             font=("Segoe UI", 9)
         )
         self.cb_gemini_model.grid(row=0, column=0, sticky="ew")
@@ -460,9 +460,9 @@ class ArticleRewriterView(ttk.Frame):
 
         gemini_legacy = self.cfg_mgr.get("gemini", {})
         self.v_gemini_key.set(ai.get("gemini_api_key") or gemini_legacy.get("api_key", ""))
-        loaded_model = ai.get("gemini_model") or gemini_legacy.get("model", "gemini-3.7-flash")
-        if "3.5" in loaded_model or loaded_model in ("gemini-1.5-flash", ""):
-            loaded_model = "gemini-3.7-flash"
+        loaded_model = ai.get("gemini_model") or gemini_legacy.get("model", "gemini-3.5-flash-lite")
+        if loaded_model in ("gemini-1.5-flash", "gemini-2.0-flash", "gemini-2.5-flash", "gemini-3.7-flash", ""):
+            loaded_model = "gemini-3.5-flash-lite"
         self.v_gemini_model.set(loaded_model)
         self.v_openai_base_url.set(ai.get("openai_base_url", "https://api.9router.com/v1"))
         self.v_openai_key.set(ai.get("openai_api_key", ""))
