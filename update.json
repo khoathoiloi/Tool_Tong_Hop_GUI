@@ -1,11 +1,22 @@
-﻿{
-  "latest_version": "2.6.1",
+{
+  "latest_version": "2.7.0",
+  "version": "2.7.0",
   "minimum_supported_version": "1.0.0",
   "release_date": "2026-08-31",
-  "release_notes": "Nâng cấp hệ thống Auto Update v2 với Bootstrap Updater độc lập, xác thực Checksum SHA256 và Rollback tự động.",
-  "package_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.6.1/MasterToolHub_v2.6.1.zip",
-  "package_sha256": "1de985639ae08c811d913589e66e32c3c189ba34f02aa11518ed9918fb10e9de",
-  "updater_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.6.1/Updater.exe",
+  "release_notes": "Big Update v2.7.0: Tích hợp native Module Xào Bài Báo (AI Gemini Rewriter & CDP CMS Publisher), điều khiển Chrome độc lập bắt Token/Cookie HttpOnly, đăng bài tự động đa luồng.",
+  "package_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.0/MasterToolHub_v2.7.0.zip",
+  "download_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.0/MasterToolHub_v2.7.0.zip",
+  "package_sha256": "2e17fd2b91118c54486df6c6456004c9f996352ea5c52fb10171fe5c81670e00",
+  "sha256": "2e17fd2b91118c54486df6c6456004c9f996352ea5c52fb10171fe5c81670e00",
+  "updater_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.0/Updater.exe",
   "updater_sha256": "3ab1a16bc37225fd0a5225d84cd87faa8e361d2cf54f2bec5c3f599904417521",
-  "mandatory": false
+  "changelog": [
+    "Big Update v2.7.0: Tích hợp native Module Xào Bài Báo (AI Gemini Rewriter & CDP CMS Publisher)",
+    "Điều khiển Chrome độc lập qua Chrome DevTools Protocol (CDP), tự bắt Token/Cookie bảo mật HttpOnly",
+    "Tự động viết lại bài báo chuẩn SEO qua Google Gemini API đa luồng với cơ chế retry rate limit",
+    "Đăng bài tự động lên website CMS (jesusvibe.danhngon.pro) với hỗ trợ mã nhúng Embed và chống trùng SHA256",
+    "Quản lý hàng đợi đa luồng, cô lập lỗi (Error Isolation), Dừng an toàn (Safe Stop) và Thử lại bài lỗi"
+  ],
+  "mandatory": false,
+  "min_updater_version": "1.0.0"
 }

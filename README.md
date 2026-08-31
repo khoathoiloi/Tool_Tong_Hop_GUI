@@ -1,19 +1,19 @@
-# 🚀 MasterToolHub - Bộ Công Cụ Tổng Hợp Fanpage & Media (v2.6.1)
+# 🚀 MasterToolHub - Bộ Công Cụ Tổng Hợp Fanpage & Media (v2.7.0)
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.6.1-blue.svg?cacheSeconds=2592000" alt="Version 2.6.1" />
+  <img src="https://img.shields.io/badge/version-2.7.0-blue.svg?cacheSeconds=2592000" alt="Version 2.7.0" />
   <img src="https://img.shields.io/badge/Python-3.12-brightgreen.svg" alt="Python 3.12" />
   <img src="https://img.shields.io/badge/CUDA-12.x-green.svg" alt="CUDA 12" />
   <img src="https://img.shields.io/badge/License-MIT-orange.svg" alt="License MIT" />
 </p>
 
-Bộ phần mềm đồ họa (GUI) tổng hợp **All-in-One** tích hợp toàn bộ các công cụ biên tập Fanpage, tạo phụ đề AI siêu tốc, xử lý tiêu đề và tự động hóa rút gọn link trong một cửa sổ làm việc duy nhất.
+Bộ phần mềm đồ họa (GUI) tổng hợp **All-in-One** tích hợp toàn bộ các công cụ biên tập Fanpage, tạo phụ đề AI siêu tốc, xào bài báo AI & đăng CMS tự động, xử lý tiêu đề và tự động hóa rút gọn link trong một cửa sổ làm việc duy nhất.
 
 ---
 
 ## 📥 TẢI VỀ & SỬ DỤNG NGAY (PORTABLE - KHÔNG CẦN CÀI ĐẶT)
 
-👉 **[Tải Bản Mới Nhất (MasterToolHub_v2.6.1.zip)](https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/latest)**
+👉 **[Tải Bản Mới Nhất (MasterToolHub_v2.7.0.zip)](https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/latest)**
 
 *Tải về, giải nén và mở file `MasterToolHub.exe` hoặc click đúp `run_app.bat` để chạy ngay.*
 
@@ -32,16 +32,22 @@ Bộ phần mềm đồ họa (GUI) tổng hợp **All-in-One** tích hợp toà
 - **Bộ lọc Dynamic Audio Normalizer (`DynAudNorm`)**: Tự động kích âm thanh những đoạn nói nhỏ/thì thầm.
 - **Lọc khoảng lặng VAD & Gom câu thông minh**: Chia dòng ngắn gọn (tối đa 36 ký tự, 7 từ) chuẩn định dạng video ngắn Reels / TikTok / Shorts.
 
-### 3. 📝 Trích Xuất Tiêu Đề Đã Đăng (`title.txt`)
+### 3. 📰 Xào Bài Báo Tự Động (AI Gemini Rewriter & CDP CMS Publisher)
+- **Điều khiển Chrome độc lập qua CDP**: Tự động mở Chrome profile riêng biệt, tự động điền thông tin đăng nhập và trích xuất Token CSRF cùng Cookie phiên làm việc (kể cả cookie bảo mật `HttpOnly`).
+- **AI Gemini SEO Spinning**: Tự động viết lại bài báo chuẩn SEO sang ngôn ngữ đích (English, Tiếng Việt...) qua Gemini API (`gemini-3.5-flash-lite`, `gemini-1.5-flash`,...).
+- **Đăng bài tự động lên CMS**: Tự động chèn mã nhúng/Embed theo vị trí (Sau đoạn đầu, Cuối bài...), thiết lập hiển thị trang chủ/ghim top, đăng bài đa luồng (3 luồng song song).
+- **Quản lý hàng đợi & Chống trùng**: Cô lập lỗi (Error Isolation), Dừng an toàn (Safe Stop), lưu lịch sử băm SHA256 chống đăng trùng.
+
+### 4. 📝 Trích Xuất Tiêu Đề Đã Đăng (`title.txt`)
 - Quét kho thư mục video, đọc `link-da-dung.txt` / `link-da-dang.txt` và tự động tạo file `title.txt` chuẩn cho từng folder.
 
-### 4. 🔗 Rút Gọn Link ShiftLink Automation
+### 5. 🔗 Rút Gọn Link ShiftLink Automation
 - Tự động nhận diện cột link trong file Excel và danh sách Sheet.
 - Tạo slug ngẫu nhiên độ dài 15-21 ký tự, bộ nhớ đệm cache URL tránh gọi trùng.
 - Đã tích hợp sẵn **8 tên miền chuẩn của web**: `nextpart2.online`, `fullstoriesdrama.com`, `reviewphan2.com`, `fullguide.tips`, `phimhay.fit`, `filmgood.shop`, `nextpartfull.com`, `nextfullvideo.com`.
 
-### 5. 🔄 Tự Động Cập Nhật Trực Tiếp Trên App (GitHub Auto-Updater)
-- Tích hợp sẵn tính năng kiểm tra và tự động cập nhật ngay trên giao diện phần mềm khi có phiên bản mới trên GitHub.
+### 6. 🔄 Tự Động Cập Nhật Trực Tiếp Trên App (GitHub Bootstrap Updater v2)
+- Tích hợp Bootstrap Updater độc lập, xác thực mã băm SHA256, tự động sao lưu và khôi phục khi cập nhật, bảo toàn 100% dữ liệu người dùng.
 
 ---
 

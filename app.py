@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 import os
 import sys
 import threading
@@ -12,6 +12,7 @@ from modules.excel_fanpage.view import ExcelFanpageView
 from modules.ai_whisper_srt.view import AiWhisperSrtView
 from modules.extract_title.view import ExtractTitleView
 from modules.shiftlink_shortener.view import ShiftLinkShortenerView
+from modules.article_rewriter.view import ArticleRewriterView
 from modules.settings.view import SettingsView
 
 class MasterToolApp(tk.Tk):
@@ -85,6 +86,7 @@ class MasterToolApp(tk.Tk):
             ("ai_whisper_srt", "⚡ AI Faster-Whisper SRT"),
             ("extract_title", "📝 Trích Xuất Title.txt"),
             ("shiftlink_shortener", "🔗 Rút Gọn Link ShiftLink"),
+            ("article_rewriter", "📰 Xào Bài Báo (AI & CMS)"),
             ("settings", "⚙️ Cài Đặt & Cập Nhật"),
         ]
 
@@ -124,11 +126,13 @@ class MasterToolApp(tk.Tk):
         self.content_container = tk.Frame(self, bg=THEME["bg"])
         self.content_container.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
+        app_dir = os.path.dirname(os.path.abspath(__file__))
         self.views = {
             "excel_fanpage": ExcelFanpageView(self.content_container, self),
             "ai_whisper_srt": AiWhisperSrtView(self.content_container, self),
             "extract_title": ExtractTitleView(self.content_container, self),
             "shiftlink_shortener": ShiftLinkShortenerView(self.content_container, self),
+            "article_rewriter": ArticleRewriterView(self.content_container, self, app_dir),
             "settings": SettingsView(self.content_container, self)
         }
 
