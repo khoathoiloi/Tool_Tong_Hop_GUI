@@ -1,41 +1,67 @@
 # -*- coding: utf-8 -*-
 """
 modules/article_rewriter/gemini_engine.py
-Multi-Provider AI Engine: Hỗ trợ cả Google Gemini và OpenAI / 9Router (OpenAI Compatible).
-Hỗ trợ Timeout, Retry, Exponential Backoff (429 Rate Limit), và Thread-Safe.
+GOLDEN GEMINI ENGINE: Port nguyên bản kiến trúc kết nối từ ToolXaoBaiBao_V3 gốc.
+Sử dụng requests library, timeout 120s, lọc thẻ <think>/<thought>/<reasoning>,
+hỗ trợ xoay vòng / fallback và OpenAI / 9Router tương thích.
 """
-import time
+import re
 import json
-import urllib.request
-import urllib.error
-import ssl
-from typing import Tuple, Dict, Any, Callable
+import time
+import requests
+from typing import Tuple, List, Dict, Any, Callable
 
-DEFAULT_PROMPT_TEMPLATE = """You are a professional SEO journalist and content creator.
-Please rewrite and translate the following article into {language}.
-Requirements:
-1. Make it captivating, engaging, natural, and 100% unique (pass AI detection and plagiarism checks).
-2. Structure with clear paragraphs.
-3. Return the response in strict JSON format with exactly two fields:
-   - "title": A catchy, SEO-optimized title.
-   - "body": The full rewritten article in clean HTML format (<p>, <h2>, <h3>, <ul>, <li>, <strong>).
+DEFAULT_PROMPT_TEMPLATE = """You are an elite viral blog editor and masterful investigative storyteller.
+Your task is to completely rewrite, reframe, and spin the following source article into a BRAND NEW, captivating, high-retention blog article written in {language}.
 
-Original Article:
+ORIGINAL CONTENT:
 {article_content}
+
+STRICT WRITING RULES:
+1. CREATE A FRESH, COMPELLING TITLE:
+   - Make it sensational, dramatic, and high-CTR without being cheap clickbait.
+2. COMPELLING REWRITTEN STORY:
+   - Rewrite the entire narrative with rich emotion, suspense, and engaging storytelling.
+   - Structure with well-crafted paragraphs and ## Subheadings.
+3. LANGUAGE:
+   - Output completely in {language}.
+4. STRICT OUTPUT FORMAT:
+Your entire output MUST strictly start with 'TITLE:' and contain ONLY the title and the clean HTML/markdown article body.
+Format:
+TITLE: [Your New Catchy Title Here]
+
+[Your New Article Body with paragraphs and <h2> Subheadings]
+
+Do NOT include any extra notes, preambles, reasoning tags, or markdown fences.
 """
+
+def _kilo_strip_think(text: str) -> str:
+    """Loại bỏ các thẻ suy nghĩ reasoning của model (Gemini 3.7 / DeepSeek)"""
+    t = str(text or "")
+    t = re.sub(r'(?is)<think>.*?</think>', '', t)
+    t = re.sub(r'(?is)<thought>.*?</thought>', '', t)
+    t = re.sub(r'(?is)<reasoning>.*?</reasoning>', '', t)
+    return t.strip()
+
+def _gemini_is_daily_limit(body_txt: str) -> bool:
+    return bool(re.search(
+        r'per day|/day|\bdaily\b|tokens? per day|requests? per day|\bTPD\b|\bRPD\b|day limit|RESOURCE_EXHAUSTED|quota exceeded|exceeded your current quota',
+        str(body_txt or ""),
+        re.I
+    ))
 
 class AIEngine:
     def __init__(
         self,
         provider: str = "gemini",
         api_key: str = "",
-        model: str = "gemini-3.5-flash-lite",
+        model: str = "gemini-3.7-flash",
         base_url: str = "https://api.9router.com/v1",
         log_cb: Callable = None
     ):
         self.provider = (provider or "gemini").lower().strip()
         self.api_key = (api_key or "").strip()
-        self.model = (model or "gemini-3.5-flash-lite").strip()
+        self.model = (model or "gemini-3.7-flash").strip()
         self.base_url = (base_url or "https://api.9router.com/v1").rstrip("/")
         self.log = log_cb or (lambda m, lv="INFO": None)
 
@@ -47,29 +73,28 @@ class AIEngine:
         max_retries: int = 3
     ) -> Tuple[bool, str, str, str]:
         """
-        Viết lại bài báo bằng AI Engine (Tự động chuyển tiếp theo Provider: Gemini hoặc OpenAI/9Router).
+        Viết lại bài báo bằng Golden Gemini Engine (hoặc OpenAI/9Router).
         Trả về: (success: bool, title: str, html_body: str, error_msg: str)
         """
         if not self.api_key:
-            return False, "", "", f"Chưa cấu hình API Key cho nhà cung cấp {self.provider.upper()}!"
+            return False, "", "", f"Chưa cấu hình API Key cho {self.provider.upper()}!"
         if not original_text or not original_text.strip():
             return False, "", "", "Nội dung bài viết gốc trống!"
 
         prompt = (custom_prompt or DEFAULT_PROMPT_TEMPLATE).format(
             language=target_language,
-            article_content=original_text.strip()
+            article_content=original_text.strip()[:6000]
         )
 
         if self.provider in ("openai", "openai_9router", "9router"):
             return self._call_openai_compatible(prompt, max_retries)
         else:
-            return self._call_gemini(prompt, max_retries)
+            return self._call_gemini_golden(prompt, max_retries)
 
     def validate_connection(self) -> Tuple[bool, str]:
         """
         Kiểm tra nhanh kết nối API Key và Model trước khi chạy hàng đợi.
         Không log hay làm lộ API Key ra ngoài.
-        Trả về: (success: bool, detail_message: str)
         """
         if not self.api_key:
             return False, f"Chưa nhập API Key cho {self.provider.upper()}!"
@@ -84,105 +109,74 @@ class AIEngine:
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json",
-                "User-Agent": "MasterToolHub-Validator"
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MasterToolHub/2.7"
             }
-            ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
-
             try:
-                req = urllib.request.Request(endpoint, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
-                with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
-                    resp_text = resp.read().decode("utf-8-sig", errors="ignore")
-                    resp_data = json.loads(resp_text)
-                    if "choices" in resp_data:
-                        return True, f"Kết nối 9Router thành công! Model '{self.model}' khả dụng."
-                    else:
-                        err = resp_data.get("error", {}).get("message", "Phản hồi không hợp lệ")
-                        return False, f"Lỗi 9Router: {err}"
-            except urllib.error.HTTPError as he:
-                err_b = he.read().decode("utf-8", errors="ignore")
-                try:
-                    err_j = json.loads(err_b)
-                    msg = err_j.get("error", {}).get("message", err_b[:120])
-                except Exception:
-                    msg = err_b[:120]
-                if he.code == 401:
+                r = requests.post(endpoint, headers=headers, json=payload, timeout=15)
+                if 200 <= r.status_code < 300:
+                    return True, f"Kết nối 9Router thành công! Model '{self.model}' khả dụng."
+                elif r.status_code == 401:
                     return False, "Lỗi xác thực (HTTP 401): API Key không hợp lệ."
-                elif he.code == 404:
+                elif r.status_code == 404:
                     return False, f"Lỗi Model (HTTP 404): Không tìm thấy model '{self.model}' trên 9Router."
-                return False, f"HTTP {he.code}: {msg}"
+                else:
+                    return False, f"HTTP {r.status_code}: {r.text[:120]}"
             except Exception as e:
-                return False, f"Lỗi kết nối: {str(e)}"
+                return False, f"Lỗi kết nối ({type(e).__name__}): {str(e)}"
 
         else:
-            # Google Gemini
+            # Google Gemini Golden Connection Test
             api_version = "v1beta"
             request_model = self.model.strip()
-            api_url = f"https://generativelanguage.googleapis.com/{api_version}/models/{request_model}:generateContent?key={self.api_key}"
-            payload = {
-                "contents": [{"parts": [{"text": "Hi"}]}],
-                "generationConfig": {"maxOutputTokens": 5}
+            endpoint = f"https://generativelanguage.googleapis.com/{api_version}/models/{request_model}:generateContent?key={self.api_key}"
+            body = {
+                "contents": [{"parts": [{"text": "Hello"}]}],
+                "generationConfig": {
+                    "temperature": 0.1,
+                    "maxOutputTokens": 5
+                }
             }
-            ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
             headers = {
                 "Content-Type": "application/json",
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MasterToolHub/2.7"
             }
 
             try:
-                req = urllib.request.Request(api_url, data=json.dumps(payload).encode("utf-8"), headers=headers)
-                with urllib.request.urlopen(req, context=ctx, timeout=25) as resp:
-                    resp_text = resp.read().decode("utf-8-sig", errors="ignore")
-                    resp_data = json.loads(resp_text)
-                    if "candidates" in resp_data:
-                        return True, f"Kết nối Google Gemini thành công! Model '{request_model}' ({api_version}) khả dụng."
-                    else:
-                        err = resp_data.get("error", {}).get("message", "Phản hồi không hợp lệ")
-                        return False, f"Lỗi Gemini: {err}"
-            except urllib.error.HTTPError as he:
-                err_b = he.read().decode("utf-8", errors="ignore")
-                try:
-                    err_j = json.loads(err_b)
-                    msg = err_j.get("error", {}).get("message", err_b[:120])
-                except Exception:
-                    msg = err_b[:120]
-                if he.code == 400:
-                    return False, f"Lỗi API (HTTP 400): API Key không hợp lệ hoặc cú pháp sai: {msg}"
-                elif he.code == 404:
+                r = requests.post(endpoint, headers=headers, json=body, timeout=15)
+                if 200 <= r.status_code < 300:
+                    return True, f"Kết nối Google Gemini thành công! Model '{request_model}' ({api_version}) khả dụng."
+                elif r.status_code == 400:
+                    return False, f"Lỗi API (HTTP 400): API Key không hợp lệ hoặc cú pháp sai."
+                elif r.status_code == 404:
                     return False, f"Lỗi Model (HTTP 404): Model '{request_model}' không tìm thấy cho API {api_version}."
-                elif he.code == 403:
+                elif r.status_code == 403:
                     return False, "Lỗi Phân Quyền (HTTP 403): API Key bị giới hạn hoặc chưa bật Generative Language API."
-                return False, f"HTTP {he.code}: {msg}"
+                elif r.status_code == 429:
+                    return False, "Lỗi Quota (HTTP 429): API Key đã hết lượt request / rate limit."
+                else:
+                    return False, f"HTTP {r.status_code}: {r.text[:120]}"
             except Exception as e:
                 return False, f"Lỗi kết nối ({type(e).__name__}): {str(e)}"
 
     @staticmethod
-    def fetch_available_models(api_key: str, api_version: str = "v1beta") -> Tuple[bool, list, str]:
+    def fetch_available_models(api_key: str, api_version: str = "v1beta") -> Tuple[bool, List[str], str]:
         """
         Dynamic Model Discovery: Lấy danh sách model Gemini khả dụng từ Google API.
-        Trả về: (success: bool, models_list: list, message: str)
         """
         if not api_key or not api_key.strip():
             return False, [], "Chưa nhập API Key!"
 
         api_url = f"https://generativelanguage.googleapis.com/{api_version}/models?key={api_key.strip()}"
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MasterToolHub/2.7"
         }
 
         try:
-            req = urllib.request.Request(api_url, headers=headers)
-            with urllib.request.urlopen(req, context=ctx, timeout=25) as resp:
-                data = json.loads(resp.read().decode("utf-8-sig", errors="ignore"))
+            r = requests.get(api_url, headers=headers, timeout=15)
+            if 200 <= r.status_code < 300:
+                data = r.json()
                 raw_models = data.get("models", [])
                 
-                # Lọc các model hỗ trợ generateContent
                 gemini_models = []
                 for m in raw_models:
                     m_name = m.get("name", "").replace("models/", "").strip()
@@ -190,7 +184,6 @@ class AIEngine:
                     if "generateContent" in methods and not any(k in m_name for k in ["embedding", "aqa", "imagen"]):
                         gemini_models.append(m_name)
 
-                # Sắp xếp và ưu tiên các model mới nhất
                 def _sort_priority(name: str):
                     if "3.7" in name:
                         return (0, name)
@@ -205,90 +198,97 @@ class AIEngine:
                 gemini_models.sort(key=_sort_priority)
 
                 if not gemini_models:
-                    # Fallback danh sách model tiêu chuẩn
                     gemini_models = ["gemini-3.7-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
 
                 return True, gemini_models, f"Đã tìm thấy {len(gemini_models)} model khả dụng từ Google API."
-        except urllib.error.HTTPError as he:
-            err_b = he.read().decode("utf-8", errors="ignore")
-            if he.code == 400:
+            elif r.status_code == 400:
                 return False, [], "API Key không hợp lệ (HTTP 400)."
-            elif he.code in (401, 403):
-                return False, [], f"Lỗi xác thực/phân quyền API Key (HTTP {he.code})."
-            return False, [], f"Lỗi HTTP {he.code}: {err_b[:100]}"
+            elif r.status_code in (401, 403):
+                return False, [], f"Lỗi xác thực/phân quyền API Key (HTTP {r.status_code})."
+            else:
+                return False, [], f"Lỗi HTTP {r.status_code}: {r.text[:100]}"
         except Exception as e:
-            return False, [], f"Lỗi kết nối khi lấy danh sách model: {str(e)}"
+            return False, [], f"Lỗi kết nối ({type(e).__name__}): {str(e)}"
 
-    def _call_gemini(self, prompt: str, max_retries: int) -> Tuple[bool, str, str, str]:
+    def _call_gemini_golden(self, prompt: str, max_retries: int) -> Tuple[bool, str, str, str]:
+        """Golden Reference Implementation từ ToolXaoBaiBao_V3"""
         selected_model = self.model.strip()
         request_model = selected_model
         api_version = "v1beta"
 
-        # Kiểm tra tính toàn vẹn của model
         if selected_model != request_model:
             err = f"INTERNAL MODEL MISMATCH: Selected model ({selected_model}) != Request model ({request_model})"
             self.log(f"❌ {err}", "ERROR")
             return False, "", "", err
 
-        api_url = f"https://generativelanguage.googleapis.com/{api_version}/models/{request_model}:generateContent?key={self.api_key}"
+        endpoint = f"https://generativelanguage.googleapis.com/{api_version}/models/{request_model}:generateContent?key={self.api_key}"
 
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
+        body = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": prompt}
+                    ]
+                }
+            ],
             "generationConfig": {
-                "temperature": 0.7,
-                "topP": 0.95,
-                "responseMimeType": "application/json"
+                "temperature": 0.75,
+                "topP": 0.9,
+                "maxOutputTokens": 4096
             }
         }
 
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-
-        json_bytes = json.dumps(payload).encode("utf-8")
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MasterToolHub/2.7"
+        }
 
         for attempt in range(1, max_retries + 1):
-            # Log bắt buộc 4 dòng chuẩn
-            self.log(f"[Gemini] Selected model: {selected_model}", "INFO")
+            self.log(f"[Gemini] Golden Engine - Model: {selected_model}", "INFO")
             self.log(f"[Gemini] Request model: {request_model}", "INFO")
             self.log(f"[Gemini] API version: {api_version}", "INFO")
             self.log(f"[Gemini] Attempt: {attempt}/{max_retries}", "INFO")
 
             try:
-                req = urllib.request.Request(api_url, data=json_bytes, headers={"Content-Type": "application/json"})
+                # Golden timeout 120s từ Tool gốc
+                r = requests.post(endpoint, headers=headers, json=body, timeout=120)
+                _code = getattr(r, 'status_code', 0)
 
-                with urllib.request.urlopen(req, context=ctx, timeout=60) as resp:
-                    resp_data = json.loads(resp.read().decode("utf-8-sig", errors="ignore"))
-                    candidates = resp_data.get("candidates", [])
+                if 200 <= _code < 300:
+                    data = r.json()
+                    candidates = data.get("candidates", [])
                     if not candidates:
                         return False, "", "", "Gemini không trả về kết quả hợp lệ!"
 
-                    raw_text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-                    title, body = self._parse_json_or_text(raw_text)
-                    self.log(f"✅ Xào bài thành công qua Gemini! Tiêu đề: {title[:40]}...", "SUCCESS")
-                    return True, title, body, ""
+                    raw_out = str(candidates[0].get("content", {}).get("parts", [{}])[0].get("text", ""))
+                    raw_out = _kilo_strip_think(raw_out)
 
-            except urllib.error.HTTPError as he:
-                err_b = he.read().decode("utf-8", errors="ignore")
+                    title, html_body = self._parse_golden_response(raw_out)
+                    self.log(f"✅ Xào bài thành công qua Golden Gemini! Tiêu đề: {title[:40]}...", "SUCCESS")
+                    return True, title, html_body, ""
 
-                # Phân loại lỗi: Không retry 404, 400, 401, 403
-                if he.code == 404:
+                # Phân loại lỗi và fail fast
+                err_text = getattr(r, 'text', '')[:200]
+                if _code == 404:
                     self.log(f"❌ [Gemini] Lỗi HTTP 404: Model '{request_model}' không tồn tại cho API {api_version}!", "ERROR")
                     return False, "", "", f"❌ Gemini model unavailable: {request_model} (HTTP 404)"
-                elif he.code in (400, 401, 403):
-                    self.log(f"❌ [Gemini] Lỗi xác thực/phân quyền (HTTP {he.code})!", "ERROR")
-                    return False, "", "", f"Lỗi HTTP {he.code}: API Key hoặc phân quyền không hợp lệ."
-                elif he.code == 429:
+                elif _code in (400, 401, 403):
+                    self.log(f"❌ [Gemini] Lỗi xác thực/phân quyền (HTTP {_code}): {err_text}", "ERROR")
+                    return False, "", "", f"Lỗi HTTP {_code}: API Key hoặc phân quyền không hợp lệ."
+                elif _code == 429 or _gemini_is_daily_limit(err_text):
                     backoff = attempt * 3
                     self.log(f"⚠️ Gemini Rate Limit (429)! Đang chờ {backoff}s...", "WARNING")
                     time.sleep(backoff)
-                elif he.code >= 500:
-                    self.log(f"⚠️ Máy chủ Google lỗi (HTTP {he.code}), đang thử lại...", "WARNING")
+                elif _code >= 500:
+                    self.log(f"⚠️ Máy chủ Google lỗi (HTTP {_code}), đang thử lại...", "WARNING")
                     time.sleep(attempt * 2)
                 else:
-                    self.log(f"Lỗi HTTP {he.code}: {err_b[:100]}", "WARNING")
+                    self.log(f"Lỗi HTTP {_code}: {err_text}", "WARNING")
                     time.sleep(attempt * 2)
 
+            except requests.exceptions.Timeout:
+                self.log(f"⚠️ Gemini timeout (Lần {attempt}), đang thử lại...", "WARNING")
+                time.sleep(attempt * 2)
             except Exception as e:
                 self.log(f"Lỗi kết nối Gemini (Lần {attempt}): {e}", "WARNING")
                 time.sleep(attempt * 2)
@@ -312,104 +312,95 @@ class AIEngine:
         payload = {
             "model": request_model,
             "messages": [
-                {"role": "system", "content": "You are a professional SEO journalist. You MUST ALWAYS respond with a strict JSON object containing 'title' and 'body' fields."},
+                {"role": "system", "content": "You are a professional SEO journalist. You MUST format output as TITLE: <title>\n\n<body>."},
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.7
         }
 
-        # Bật response_format json nếu model hỗ trợ
-        if any(k in request_model.lower() for k in ["gpt", "4o", "mini", "deepseek"]):
-            payload["response_format"] = {"type": "json_object"}
-
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "User-Agent": "MasterToolHub-AIEngine"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MasterToolHub/2.7"
         }
-
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-
-        json_bytes = json.dumps(payload).encode("utf-8")
 
         for attempt in range(1, max_retries + 1):
             try:
-                self.log(f"Đang gửi bài viết tới 9Router/OpenAI ({self.model}) - Lần {attempt}/{max_retries}...", "INFO")
-                req = urllib.request.Request(endpoint, data=json_bytes, headers=headers, method="POST")
+                self.log(f"Đang gửi bài viết tới 9Router/OpenAI ({request_model}) - Lần {attempt}/{max_retries}...", "INFO")
+                r = requests.post(endpoint, headers=headers, json=payload, timeout=120)
+                _code = r.status_code
 
-                with urllib.request.urlopen(req, context=ctx, timeout=60) as resp:
-                    resp_bytes = resp.read()
-                    resp_text = resp_bytes.decode("utf-8-sig", errors="ignore").strip()
-                    if not resp_text:
-                        self.log(f"⚠️ 9Router trả về dữ liệu rỗng (Empty response)! Kiểm tra lại Model '{self.model}' trên 9Router.", "WARNING")
-                        time.sleep(attempt * 2)
-                        continue
-
-                    try:
-                        resp_data = json.loads(resp_text)
-                    except Exception as json_err:
-                        snippet = resp_text[:120].replace('\n', ' ')
-                        self.log(f"⚠️ Máy chủ 9Router không trả JSON hợp lệ: {snippet}", "WARNING")
-                        time.sleep(attempt * 2)
-                        continue
-
+                if 200 <= _code < 300:
+                    resp_data = r.json()
                     choices = resp_data.get("choices", [])
                     if not choices:
-                        err_msg = resp_data.get("error", {}).get("message", str(resp_data))
-                        self.log(f"⚠️ 9Router không trả choices: {err_msg[:120]}", "WARNING")
-                        return False, "", "", f"Lỗi 9Router: {err_msg[:120]}"
+                        return False, "", "", "9Router không trả về kết quả hợp lệ!"
 
                     raw_text = choices[0].get("message", {}).get("content", "")
-                    title, body = self._parse_json_or_text(raw_text)
+                    raw_text = _kilo_strip_think(raw_text)
+                    title, body = self._parse_golden_response(raw_text)
                     self.log(f"✅ Xào bài thành công qua 9Router! Tiêu đề: {title[:40]}...", "SUCCESS")
                     return True, title, body, ""
 
-            except urllib.error.HTTPError as he:
-                err_b = he.read().decode("utf-8", errors="ignore")[:150]
-                if he.code == 429:
+                err_text = r.text[:200]
+                if _code in (400, 401, 403, 404):
+                    self.log(f"❌ [9Router] Lỗi HTTP {_code}: {err_text}", "ERROR")
+                    return False, "", "", f"Lỗi 9Router HTTP {_code}: {err_text}"
+                elif _code == 429:
                     backoff = attempt * 3
                     self.log(f"⚠️ 9Router Rate Limit (429)! Đang chờ {backoff}s...", "WARNING")
                     time.sleep(backoff)
-                elif he.code == 401:
-                    self.log(f"❌ 9Router API Key không hợp lệ (401)!", "ERROR")
-                    return False, "", "", "API Key 9Router không hợp lệ!"
                 else:
-                    self.log(f"Lỗi 9Router HTTP {he.code}: {err_b}", "WARNING")
                     time.sleep(attempt * 2)
+
             except Exception as e:
                 self.log(f"Lỗi kết nối 9Router (Lần {attempt}): {e}", "WARNING")
                 time.sleep(attempt * 2)
 
-        return False, "", "", "Không thể kết nối tới 9Router/OpenAI API sau các lần thử!"
+        return False, "", "", "Không thể kết nối tới 9Router sau các lần thử!"
 
-    @staticmethod
-    def _parse_json_or_text(raw_text: str) -> Tuple[str, str]:
-        raw_text = raw_text.strip()
-        # Loại bỏ markdown code block nếu có
-        if raw_text.startswith("```json"):
-            raw_text = raw_text[7:]
-        if raw_text.startswith("```"):
-            raw_text = raw_text[3:]
-        if raw_text.endswith("```"):
-            raw_text = raw_text[:-3]
-        raw_text = raw_text.strip()
+    def _parse_golden_response(self, raw_text: str) -> Tuple[str, str]:
+        """Tách Tiêu đề và Nội dung bài viết theo chuẩn Golden Format"""
+        text = _kilo_strip_think(raw_text or "").strip()
+        new_title = ""
+        new_body = ""
 
-        try:
-            parsed = json.loads(raw_text)
-            title = str(parsed.get("title", "")).strip()
-            body = str(parsed.get("body", "")).strip()
-            if title and body:
-                return title, body
-        except Exception:
-            pass
+        m_title = re.search(r'^TITLE:\s*(.+)$', text, flags=re.M | re.I)
+        if m_title:
+            new_title = m_title.group(1).strip()
+            new_body = text[m_title.end():].strip()
+        else:
+            lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+            if lines:
+                new_title = re.sub(r'^[#*\s]+', '', lines[0]).strip()
+                new_body = "\n\n".join(lines[1:]).strip()
 
-        # Fallback text parsing
-        lines = raw_text.strip().split("\n")
-        title = lines[0].lstrip("# ").strip()
-        body = "<p>" + "</p><p>".join([l.strip() for l in lines[1:] if l.strip()]) + "</p>"
-        return title, body
+        if not new_title:
+            new_title = "Tin Tức Tổng Hợp Mới"
+        if not new_body:
+            new_body = text
 
-# Alias for backward compatibility
+        # Chuyển đổi Markdown sang HTML sạch nếu chưa có thẻ HTML
+        if "<p>" not in new_body and "<h2>" not in new_body:
+            out_lines = []
+            for line in new_body.splitlines():
+                raw = line.strip()
+                if not raw:
+                    continue
+                if raw.startswith("### "):
+                    out_lines.append(f"<h3>{raw[4:].strip()}</h3>")
+                elif raw.startswith("## "):
+                    out_lines.append(f"<h2>{raw[3:].strip()}</h2>")
+                elif raw.startswith("# "):
+                    out_lines.append(f"<h1>{raw[2:].strip()}</h1>")
+                elif raw.startswith("- ") or raw.startswith("* "):
+                    out_lines.append(f"<li>{raw[2:].strip()}</li>")
+                else:
+                    out_lines.append(f"<p>{raw}</p>")
+            new_body = "\n".join(out_lines)
+
+        return new_title, new_body
+
+# Alias tương thích
 GeminiEngine = AIEngine
+GoldenGeminiEngine = AIEngine
