@@ -647,15 +647,18 @@ class ArticleRewriterView(ttk.Frame):
         self.logger.info("Khởi chạy tiến trình lấy Cookie/CSRF Token qua Chrome DevTools...")
 
         def _auth_thread():
-            auth_mgr = AuthManager(log_cb=self._safe_log)
-            cfg = self._collect_config_from_ui()
-            web = cfg.get("website", {})
-            ok, s_data, msg = auth_mgr.fetch_session_via_cdp(
-                login_url=web.get("login_url", ""),
-                user=web.get("username", ""),
-                password=web.get("password", ""),
-                base_url=web.get("base_url", "")
-            )
+            try:
+                auth_mgr = AuthManager(log_cb=self._safe_log)
+                cfg = self._collect_config_from_ui()
+                web = cfg.get("website", {})
+                ok, s_data, msg = auth_mgr.fetch_session_via_cdp(
+                    login_url=web.get("login_url", ""),
+                    user=web.get("username", ""),
+                    password=web.get("password", ""),
+                    base_url=web.get("base_url", "")
+                )
+            except Exception as e:
+                ok, s_data, msg = False, {}, f"Lỗi khởi chạy CDP: {e}"
 
             def _on_auth_done():
                 self.btn_auth.configure(state=tk.NORMAL)
@@ -668,9 +671,11 @@ class ArticleRewriterView(ttk.Frame):
                     messagebox.showinfo("Thành Công", "Đã lấy và lưu Session/Cookie thành công!")
                 else:
                     self.logger.error(f"Thất bại khi lấy Token/Cookie: {msg}")
-                    messagebox.showerror("Thất Bại", f"Không thể lấy Session: {msg}")
+                    messagebox.showerror("Thất Bại", f"Không thể lấy Session:\n{msg}")
 
             self.root.after(0, _on_auth_done)
+
+        threading.Thread(target=_auth_thread, daemon=True).start()
 
     def _on_refresh_models(self):
         """Dynamic Model Discovery: Lấy danh sách model từ Google API"""
