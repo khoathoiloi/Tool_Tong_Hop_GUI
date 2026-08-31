@@ -155,18 +155,71 @@ class AIEngine:
             except Exception as e:
                 return False, f"Lỗi kết nối: {str(e)}"
 
+    @staticmethod
+    def fetch_available_models(api_key: str, api_version: str = "v1beta") -> Tuple[bool, list, str]:
+        """
+        Dynamic Model Discovery: Lấy danh sách model Gemini khả dụng từ Google API.
+        Trả về: (success: bool, models_list: list, message: str)
+        """
+        if not api_key or not api_key.strip():
+            return False, [], "Chưa nhập API Key!"
+
+        api_url = f"https://generativelanguage.googleapis.com/{api_version}/models?key={api_key.strip()}"
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+
+        try:
+            req = urllib.request.Request(api_url, headers={"User-Agent": "MasterToolHub-ModelDiscovery"})
+            with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
+                data = json.loads(resp.read().decode("utf-8-sig", errors="ignore"))
+                raw_models = data.get("models", [])
+                
+                # Lọc các model hỗ trợ generateContent
+                gemini_models = []
+                for m in raw_models:
+                    m_name = m.get("name", "").replace("models/", "").strip()
+                    methods = m.get("supportedGenerationMethods", [])
+                    if "generateContent" in methods and not any(k in m_name for k in ["embedding", "aqa", "imagen"]):
+                        gemini_models.append(m_name)
+
+                # Sắp xếp và ưu tiên các model mới nhất
+                def _sort_priority(name: str):
+                    if "3.7" in name:
+                        return (0, name)
+                    if "2.5" in name:
+                        return (1, name)
+                    if "2.0" in name:
+                        return (2, name)
+                    if "1.5" in name:
+                        return (3, name)
+                    return (4, name)
+
+                gemini_models.sort(key=_sort_priority)
+
+                if not gemini_models:
+                    # Fallback danh sách model tiêu chuẩn
+                    gemini_models = ["gemini-3.7-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+
+                return True, gemini_models, f"Đã tìm thấy {len(gemini_models)} model khả dụng từ Google API."
+        except urllib.error.HTTPError as he:
+            err_b = he.read().decode("utf-8", errors="ignore")
+            if he.code == 400:
+                return False, [], "API Key không hợp lệ (HTTP 400)."
+            elif he.code in (401, 403):
+                return False, [], f"Lỗi xác thực/phân quyền API Key (HTTP {he.code})."
+            return False, [], f"Lỗi HTTP {he.code}: {err_b[:100]}"
+        except Exception as e:
+            return False, [], f"Lỗi kết nối khi lấy danh sách model: {str(e)}"
+
     def _call_gemini(self, prompt: str, max_retries: int) -> Tuple[bool, str, str, str]:
         selected_model = self.model.strip()
         request_model = selected_model
         api_version = "v1beta"
 
-        # Log đúng 3 dòng bắt buộc
-        self.log(f"[Gemini] Selected model: {selected_model}", "INFO")
-        self.log(f"[Gemini] Request model: {request_model}", "INFO")
-        self.log(f"[Gemini] API version: {api_version}", "INFO")
-
+        # Kiểm tra tính toàn vẹn của model
         if selected_model != request_model:
-            err = f"Configuration error: Selected model ({selected_model}) != Request model ({request_model})"
+            err = f"INTERNAL MODEL MISMATCH: Selected model ({selected_model}) != Request model ({request_model})"
             self.log(f"❌ {err}", "ERROR")
             return False, "", "", err
 
@@ -188,12 +241,17 @@ class AIEngine:
         json_bytes = json.dumps(payload).encode("utf-8")
 
         for attempt in range(1, max_retries + 1):
+            # Log bắt buộc 4 dòng chuẩn
+            self.log(f"[Gemini] Selected model: {selected_model}", "INFO")
+            self.log(f"[Gemini] Request model: {request_model}", "INFO")
+            self.log(f"[Gemini] API version: {api_version}", "INFO")
+            self.log(f"[Gemini] Attempt: {attempt}/{max_retries}", "INFO")
+
             try:
-                self.log(f"Đang gửi bài viết tới Google Gemini ({request_model}) - Lần {attempt}/{max_retries}...", "INFO")
                 req = urllib.request.Request(api_url, data=json_bytes, headers={"Content-Type": "application/json"})
 
                 with urllib.request.urlopen(req, context=ctx, timeout=60) as resp:
-                    resp_data = json.loads(resp.read().decode("utf-8"))
+                    resp_data = json.loads(resp.read().decode("utf-8-sig", errors="ignore"))
                     candidates = resp_data.get("candidates", [])
                     if not candidates:
                         return False, "", "", "Gemini không trả về kết quả hợp lệ!"
@@ -204,19 +262,31 @@ class AIEngine:
                     return True, title, body, ""
 
             except urllib.error.HTTPError as he:
-                if he.code == 429:
+                err_b = he.read().decode("utf-8", errors="ignore")
+
+                # Phân loại lỗi: Không retry 404, 400, 401, 403
+                if he.code == 404:
+                    self.log(f"❌ [Gemini] Lỗi HTTP 404: Model '{request_model}' không tồn tại cho API {api_version}!", "ERROR")
+                    return False, "", "", f"❌ Gemini model unavailable: {request_model} (HTTP 404)"
+                elif he.code in (400, 401, 403):
+                    self.log(f"❌ [Gemini] Lỗi xác thực/phân quyền (HTTP {he.code})!", "ERROR")
+                    return False, "", "", f"Lỗi HTTP {he.code}: API Key hoặc phân quyền không hợp lệ."
+                elif he.code == 429:
                     backoff = attempt * 3
                     self.log(f"⚠️ Gemini Rate Limit (429)! Đang chờ {backoff}s...", "WARNING")
                     time.sleep(backoff)
-                else:
-                    err_b = he.read().decode("utf-8", errors="ignore")[:100]
-                    self.log(f"Lỗi HTTP {he.code}: {err_b}", "WARNING")
+                elif he.code >= 500:
+                    self.log(f"⚠️ Máy chủ Google lỗi (HTTP {he.code}), đang thử lại...", "WARNING")
                     time.sleep(attempt * 2)
+                else:
+                    self.log(f"Lỗi HTTP {he.code}: {err_b[:100]}", "WARNING")
+                    time.sleep(attempt * 2)
+
             except Exception as e:
                 self.log(f"Lỗi kết nối Gemini (Lần {attempt}): {e}", "WARNING")
                 time.sleep(attempt * 2)
 
-        return False, "", "", "Không thể kết nối tới Gemini API sau các lần thử!"
+        return False, "", "", f"Không thể kết nối tới Gemini API ({request_model}) sau các lần thử!"
 
     def _call_openai_compatible(self, prompt: str, max_retries: int) -> Tuple[bool, str, str, str]:
         selected_model = (self.model or "gpt-4o-mini").strip()

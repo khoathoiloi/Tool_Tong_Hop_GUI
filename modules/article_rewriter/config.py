@@ -12,7 +12,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "ai": {
         "provider": "gemini",  # "gemini" hoặc "openai_9router"
         "gemini_api_key": "",
-        "gemini_model": "gemini-2.0-flash",
+        "gemini_model": "gemini-3.7-flash",
         "openai_base_url": "https://api.9router.com/v1",
         "openai_api_key": "",
         "openai_model": "gpt-4o-mini",
@@ -21,7 +21,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "gemini": {
         "api_key": "",
-        "model": "gemini-2.0-flash",
+        "model": "gemini-3.7-flash",
         "language": "English",
         "custom_prompt": ""
     },
@@ -92,9 +92,9 @@ class ArticleRewriterConfig:
                             migrated_cfg["website"]["token"] = old_data.get("art_token", "")
                             migrated_cfg["website"]["cookie"] = old_data.get("art_cookie", "")
                             migrated_cfg["gemini"]["language"] = old_data.get("art_lang", "English")
-                            legacy_m = old_data.get("art_kilo_model", "gemini-2.0-flash")
-                            if "3.5" in legacy_m:
-                                legacy_m = "gemini-2.0-flash"
+                            legacy_m = old_data.get("art_kilo_model", "gemini-3.7-flash")
+                            if "3.5" in legacy_m or legacy_m == "gemini-1.5-flash":
+                                legacy_m = "gemini-3.7-flash"
                             migrated_cfg["gemini"]["model"] = legacy_m
                             migrated_cfg["gemini"]["api_key"] = old_data.get("art_kilo_key", "")
                             migrated_cfg["ai"]["gemini_model"] = legacy_m
@@ -119,17 +119,32 @@ class ArticleRewriterConfig:
                 except Exception:
                     pass
 
-        # Lưu lại file cấu hình mới
-        self.save(migrated_cfg)
-        return migrated_cfg
+        if found_legacy:
+            self.save(migrated_cfg)
+            return migrated_cfg
+
+        return DEFAULT_CONFIG
 
     def _merge_defaults(self, cfg: Dict[str, Any]) -> Dict[str, Any]:
-        merged = dict(DEFAULT_CONFIG)
+        merged = {}
         for section, sec_data in DEFAULT_CONFIG.items():
-            if section in cfg and isinstance(cfg[section], dict):
-                merged[section] = {**sec_data, **cfg[section]}
+            if isinstance(sec_data, dict):
+                merged[section] = {**sec_data, **cfg.get(section, {})}
             elif section in cfg:
                 merged[section] = cfg[section]
+            else:
+                merged[section] = sec_data
+
+        # Migrate legacy model nếu phát hiện model cũ
+        if "ai" in merged and isinstance(merged["ai"], dict):
+            cur_m = merged["ai"].get("gemini_model", "")
+            if "3.5" in cur_m or cur_m in ("gemini-1.5-flash", ""):
+                merged["ai"]["gemini_model"] = "gemini-3.7-flash"
+        if "gemini" in merged and isinstance(merged["gemini"], dict):
+            cur_m = merged["gemini"].get("model", "")
+            if "3.5" in cur_m or cur_m in ("gemini-1.5-flash", ""):
+                merged["gemini"]["model"] = "gemini-3.7-flash"
+
         return merged
 
     def get(self, section: str, key_or_default=None, default=None):
