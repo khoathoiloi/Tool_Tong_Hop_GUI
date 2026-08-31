@@ -349,7 +349,21 @@ class ArticleRewriterView(ttk.Frame):
         self.ent_openai_key.grid(row=1, column=1, sticky="ew", padx=(5, 0), pady=3)
 
         tk.Label(self.frame_openai, text="Model:", font=("Segoe UI", 9), bg=THEME["sidebar"], fg=THEME["fg_text"]).grid(row=2, column=0, sticky="w", pady=3)
-        cb_openai_model = ttk.Combobox(self.frame_openai, textvariable=self.v_openai_model, values=["gpt-4o-mini", "gpt-4o", "deepseek-chat", "deepseek-v3", "claude-3-5-sonnet", "gemini-1.5-flash", "gemini-2.0-flash", "qwen-2.5-72b"], font=("Segoe UI", 9))
+        cb_openai_model = ttk.Combobox(
+            self.frame_openai,
+            textvariable=self.v_openai_model,
+            values=[
+                "gemini/gemini-3.5-flash-lite",
+                "gemini/gemini-3.6-flash",
+                "gemini/gemini-3.7-flash",
+                "ag/claude-sonnet-4-6",
+                "gpt-4o-mini",
+                "gpt-4o",
+                "deepseek-chat",
+                "deepseek-v3"
+            ],
+            font=("Segoe UI", 9)
+        )
         cb_openai_model.grid(row=2, column=1, sticky="ew", padx=(5, 0), pady=3)
 
         # Ngôn ngữ dịch bài chung

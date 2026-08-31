@@ -331,12 +331,10 @@ class AIEngine:
                 _code = r.status_code
 
                 if 200 <= _code < 300:
-                    resp_data = r.json()
-                    choices = resp_data.get("choices", [])
-                    if not choices:
-                        return False, "", "", "9Router không trả về kết quả hợp lệ!"
+                    raw_text = self._extract_openai_response(r)
+                    if not raw_text:
+                        return False, "", "", "9Router không trả về nội dung hợp lệ!"
 
-                    raw_text = choices[0].get("message", {}).get("content", "")
                     raw_text = _kilo_strip_think(raw_text)
                     title, body = self._parse_golden_response(raw_text)
                     self.log(f"✅ Xào bài thành công qua 9Router! Tiêu đề: {title[:40]}...", "SUCCESS")
@@ -358,6 +356,38 @@ class AIEngine:
                 time.sleep(attempt * 2)
 
         return False, "", "", "Không thể kết nối tới 9Router sau các lần thử!"
+
+    @staticmethod
+    def _extract_openai_response(r: requests.Response) -> str:
+        ct = r.headers.get("content-type", "")
+        text = r.text
+        if "event-stream" in ct or text.startswith("data:"):
+            chunks = []
+            for line in text.splitlines():
+                line = line.strip()
+                if line.startswith("data:") and not line.startswith("data: [DONE]"):
+                    chunk_str = line[5:].strip()
+                    try:
+                        chunk = json.loads(chunk_str)
+                        choices = chunk.get("choices", [])
+                        if choices:
+                            delta = choices[0].get("delta", {})
+                            msg = choices[0].get("message", {})
+                            txt = delta.get("content") or msg.get("content") or ""
+                            if txt:
+                                chunks.append(txt)
+                    except Exception:
+                        pass
+            return "".join(chunks).strip()
+        else:
+            try:
+                resp_data = r.json()
+                choices = resp_data.get("choices", [])
+                if choices:
+                    return choices[0].get("message", {}).get("content", "").strip()
+            except Exception:
+                pass
+            return text.strip()
 
     def _parse_golden_response(self, raw_text: str) -> Tuple[str, str]:
         """Tách Tiêu đề và Nội dung bài viết theo chuẩn Golden Format"""
