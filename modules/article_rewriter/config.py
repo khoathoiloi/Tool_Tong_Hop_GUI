@@ -12,7 +12,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "ai": {
         "provider": "gemini",  # "gemini" hoặc "openai_9router"
         "gemini_api_key": "",
-        "gemini_model": "gemini-3.5-flash-lite",
+        "gemini_model": "gemini-2.0-flash",
         "openai_base_url": "https://api.9router.com/v1",
         "openai_api_key": "",
         "openai_model": "gpt-4o-mini",
@@ -21,7 +21,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "gemini": {
         "api_key": "",
-        "model": "gemini-3.5-flash-lite",
+        "model": "gemini-2.0-flash",
         "language": "English",
         "custom_prompt": ""
     },
@@ -92,8 +92,13 @@ class ArticleRewriterConfig:
                             migrated_cfg["website"]["token"] = old_data.get("art_token", "")
                             migrated_cfg["website"]["cookie"] = old_data.get("art_cookie", "")
                             migrated_cfg["gemini"]["language"] = old_data.get("art_lang", "English")
-                            migrated_cfg["gemini"]["model"] = old_data.get("art_kilo_model", "gemini-3.5-flash-lite")
+                            legacy_m = old_data.get("art_kilo_model", "gemini-2.0-flash")
+                            if "3.5" in legacy_m:
+                                legacy_m = "gemini-2.0-flash"
+                            migrated_cfg["gemini"]["model"] = legacy_m
                             migrated_cfg["gemini"]["api_key"] = old_data.get("art_kilo_key", "")
+                            migrated_cfg["ai"]["gemini_model"] = legacy_m
+                            migrated_cfg["ai"]["gemini_api_key"] = old_data.get("art_kilo_key", "")
                             migrated_cfg["article"]["embed_pos"] = old_data.get("art_embed_pos", "Sau đoạn đầu")
                             migrated_cfg["article"]["keep_old_embed"] = bool(old_data.get("keep_old_embed", True))
                             migrated_cfg["article"]["art_display"] = bool(old_data.get("art_display", True))

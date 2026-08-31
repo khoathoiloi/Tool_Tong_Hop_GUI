@@ -97,7 +97,7 @@ class ArticleWorker:
         else:
             gemini_legacy = self.config.get("gemini", {})
             api_key = ai_cfg.get("gemini_api_key") or gemini_legacy.get("api_key", "")
-            model = ai_cfg.get("gemini_model") or gemini_legacy.get("model", "gemini-3.5-flash-lite")
+            model = ai_cfg.get("gemini_model") or gemini_legacy.get("model", "gemini-2.0-flash")
             base_url = ""
 
         website_cfg = self.config.get("website", {})
