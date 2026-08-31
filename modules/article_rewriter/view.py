@@ -668,7 +668,11 @@ class ArticleRewriterView(ttk.Frame):
         self.logger.info("Đang kết nối Google API để lấy danh sách Model mới nhất...")
 
         def _fetch_thread():
-            ok, models, msg = GeminiEngine.fetch_available_models(key)
+            try:
+                ok, models, msg = GeminiEngine.fetch_available_models(key)
+            except Exception as e:
+                ok, models, msg = False, [], f"Lỗi không xác định: {e}"
+
             def _done():
                 self.btn_refresh_models.configure(state=tk.NORMAL, text="🔄 Lấy Model")
                 if ok and models:
@@ -683,6 +687,7 @@ class ArticleRewriterView(ttk.Frame):
                 else:
                     self.logger.error(f"❌ Không thể lấy danh sách model: {msg}")
                     messagebox.showerror("Thất Bại", f"Lỗi lấy model từ Google API:\n{msg}")
+
             self.root.after(0, _done)
 
         threading.Thread(target=_fetch_thread, daemon=True).start()
@@ -712,14 +717,17 @@ class ArticleRewriterView(ttk.Frame):
         self.logger.info(f"Bắt đầu kiểm tra kết nối {label} (Model: {model})...")
 
         def _test_thread():
-            engine = GeminiEngine(
-                provider=prov,
-                api_key=key,
-                model=model,
-                base_url=base_url,
-                log_cb=self._safe_log
-            )
-            ok, msg = engine.validate_connection()
+            try:
+                engine = GeminiEngine(
+                    provider=prov,
+                    api_key=key,
+                    model=model,
+                    base_url=base_url,
+                    log_cb=self._safe_log
+                )
+                ok, msg = engine.validate_connection()
+            except Exception as e:
+                ok, msg = False, f"Lỗi không xác định: {e}"
 
             def _on_test_done():
                 self.btn_test_ai.configure(state=tk.NORMAL, text="🧪 Kiểm Tra Kết Nối AI (Test Model)")

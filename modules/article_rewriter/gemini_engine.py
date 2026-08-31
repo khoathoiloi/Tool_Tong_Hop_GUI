@@ -127,10 +127,14 @@ class AIEngine:
             ctx = ssl.create_default_context()
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
+            headers = {
+                "Content-Type": "application/json",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MasterToolHub/2.7"
+            }
 
             try:
-                req = urllib.request.Request(api_url, data=json.dumps(payload).encode("utf-8"), headers={"Content-Type": "application/json"})
-                with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
+                req = urllib.request.Request(api_url, data=json.dumps(payload).encode("utf-8"), headers=headers)
+                with urllib.request.urlopen(req, context=ctx, timeout=7) as resp:
                     resp_text = resp.read().decode("utf-8-sig", errors="ignore")
                     resp_data = json.loads(resp_text)
                     if "candidates" in resp_data:
@@ -153,7 +157,7 @@ class AIEngine:
                     return False, "Lỗi Phân Quyền (HTTP 403): API Key bị giới hạn hoặc chưa bật Generative Language API."
                 return False, f"HTTP {he.code}: {msg}"
             except Exception as e:
-                return False, f"Lỗi kết nối: {str(e)}"
+                return False, f"Lỗi kết nối ({type(e).__name__}): {str(e)}"
 
     @staticmethod
     def fetch_available_models(api_key: str, api_version: str = "v1beta") -> Tuple[bool, list, str]:
@@ -168,10 +172,13 @@ class AIEngine:
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MasterToolHub/2.7"
+        }
 
         try:
-            req = urllib.request.Request(api_url, headers={"User-Agent": "MasterToolHub-ModelDiscovery"})
-            with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
+            req = urllib.request.Request(api_url, headers=headers)
+            with urllib.request.urlopen(req, context=ctx, timeout=7) as resp:
                 data = json.loads(resp.read().decode("utf-8-sig", errors="ignore"))
                 raw_models = data.get("models", [])
                 
