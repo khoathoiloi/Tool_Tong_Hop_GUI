@@ -14,6 +14,7 @@ from core.theme import THEME
 from core.logger import UILogger
 from .config import ArticleRewriterConfig
 from .auth_manager import AuthManager
+from .gemini_engine import GeminiEngine, AIEngine
 from .worker import ArticleWorker, ArticleItem
 
 class ArticleRewriterView(ttk.Frame):
