@@ -6,8 +6,8 @@
   "release_notes": "Big Update v2.7.0: Tích hợp native Module Xào Bài Báo (AI Gemini Rewriter & CDP CMS Publisher), điều khiển Chrome độc lập bắt Token/Cookie HttpOnly, đăng bài tự động đa luồng.",
   "package_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.0/MasterToolHub_v2.7.0.zip",
   "download_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.0/MasterToolHub_v2.7.0.zip",
-  "package_sha256": "befe0bd3124cc3f55124cff0fe0fb842211ca9ae57a3fcdc8f0e5371062054a5",
-  "sha256": "befe0bd3124cc3f55124cff0fe0fb842211ca9ae57a3fcdc8f0e5371062054a5",
+  "package_sha256": "e3859aa45c2a3a3019dd2fb4fb8303fab644d5b223e19e9b5d26e558805d4cff",
+  "sha256": "e3859aa45c2a3a3019dd2fb4fb8303fab644d5b223e19e9b5d26e558805d4cff",
   "updater_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.0/Updater.exe",
   "updater_sha256": "3ab1a16bc37225fd0a5225d84cd87faa8e361d2cf54f2bec5c3f599904417521",
   "changelog": [

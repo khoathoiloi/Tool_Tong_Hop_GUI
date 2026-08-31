@@ -134,7 +134,7 @@ class AIEngine:
 
             try:
                 req = urllib.request.Request(api_url, data=json.dumps(payload).encode("utf-8"), headers=headers)
-                with urllib.request.urlopen(req, context=ctx, timeout=7) as resp:
+                with urllib.request.urlopen(req, context=ctx, timeout=25) as resp:
                     resp_text = resp.read().decode("utf-8-sig", errors="ignore")
                     resp_data = json.loads(resp_text)
                     if "candidates" in resp_data:
@@ -178,7 +178,7 @@ class AIEngine:
 
         try:
             req = urllib.request.Request(api_url, headers=headers)
-            with urllib.request.urlopen(req, context=ctx, timeout=7) as resp:
+            with urllib.request.urlopen(req, context=ctx, timeout=25) as resp:
                 data = json.loads(resp.read().decode("utf-8-sig", errors="ignore"))
                 raw_models = data.get("models", [])
                 
