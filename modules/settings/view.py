@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 import os
 import sys
 import threading
@@ -106,7 +106,6 @@ class SettingsView(ttk.Frame):
                 if info.get("has_update"):
                     latest_v = info.get("latest_version")
                     tag = info.get("tag_name")
-                    dl_url = info.get("download_url")
                     body = info.get("body", "")
 
                     self.lbl_update_status.config(
@@ -114,9 +113,9 @@ class SettingsView(ttk.Frame):
                         fg="#a6e3a1"
                     )
 
-                    msg = f"ĐÃ TÌM THẤY BẢN CẬP NHẬT MỚI: {tag}\n\nNội dung cập nhật:\n{body}\n\nBạn có muốn tự động tải và cập nhật ngay bây giờ không?"
+                    msg = f"ĐÃ TÌM THẤY BẢN CẬP NHẬT MỚI: {tag}\n\nNội dung cập nhật:\n{body}\n\nBạn có muốn tự động cập nhật ngay bây giờ không?"
                     if messagebox.askyesno("Có Bản Cập Nhật Mới!", msg):
-                        self._perform_update(dl_url, info.get("html_url"))
+                        self._perform_update(info)
                 elif info.get("error"):
                     self.lbl_update_status.config(text=f"⚠️ Thông báo: {info.get('error')}", fg="#f9e2af")
                 else:
@@ -129,36 +128,33 @@ class SettingsView(ttk.Frame):
 
         threading.Thread(target=_worker, daemon=True).start()
 
-    def _perform_update(self, download_url, release_page):
-        if not download_url:
+    def _perform_update(self, update_info):
+        release_page = update_info.get("html_url")
+        package_url = update_info.get("package_url") or update_info.get("download_url")
+        
+        if not package_url:
             messagebox.showinfo("Tải Bản Cập Nhật", "Mở trang GitHub Releases để tải file cập nhật thủ công.")
             webbrowser.open(release_page or f"https://github.com/{GITHUB_REPO}/releases")
             return
 
-        self.lbl_update_status.config(text="⏳ Đang tải bản cập nhật từ GitHub...", fg="#89b4fa")
+        self.lbl_update_status.config(text="🚀 Đang khởi động trình cài đặt cập nhật độc lập...", fg="#89b4fa")
         
         def _dl_worker():
             try:
-                def _prog(pct, cur, total):
-                    self.lbl_update_status.config(
-                        text=f"⏳ Đang tải bản cập nhật: {pct}% ({cur // (1024*1024)}MB / {total // (1024*1024)}MB)...",
-                        fg="#89b4fa"
-                    )
-
+                from core.updater import bootstrap_and_launch_updater
+                
                 def _log(msg, lvl="INFO"):
                     self.lbl_update_status.config(text=msg, fg="#a6e3a1" if lvl=="SUCCESS" else "#89b4fa")
 
-                ok = download_and_apply_update(download_url, progress_cb=_prog, log_cb=_log)
+                ok = bootstrap_and_launch_updater(update_info, log_cb=_log)
                 if ok:
-                    messagebox.showinfo(
-                        "Đang Áp Dụng Cập Nhật",
-                        "🎉 ĐÃ TẢI XONG BẢN CẬP NHẬT MỚI!\n\nỨng dụng sẽ tự động đóng và khởi động lại ngay bây giờ để hoàn tất cập nhật."
-                    )
-                    # Đóng app ngay để nhường quyền ghi đè file cho script cập nhật
+                    self.lbl_update_status.config(text="✅ Đã chuyển sang Trình Cập Nhật (Updater). Đang đóng ứng dụng...", fg="#a6e3a1")
+                    time.sleep(0.8)
+                    # Đóng app ngay để nhường quyền ghi đè file cho Updater.exe
                     self.root.destroy()
                     os._exit(0)
                 else:
-                    self.lbl_update_status.config(text="❌ Tự động cập nhật thất bại, vui lòng tải từ GitHub.", fg="#f38ba8")
+                    self.lbl_update_status.config(text="❌ Không thể khởi chạy Updater, vui lòng tải từ GitHub.", fg="#f38ba8")
                     webbrowser.open(release_page or f"https://github.com/{GITHUB_REPO}/releases")
             except Exception as e:
                 self.lbl_update_status.config(text=f"❌ Lỗi: {e}", fg="#f38ba8")

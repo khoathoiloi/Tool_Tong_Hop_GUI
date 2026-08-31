@@ -10,3 +10,4 @@ find_recents.py
 test*.py
 tmp*
 models/
+*.exe

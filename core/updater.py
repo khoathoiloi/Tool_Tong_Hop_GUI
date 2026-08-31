@@ -1,21 +1,24 @@
 # -*- coding: utf-8 -*-
+"""
+MasterToolHub Update Client (Core Updater)
+Kiểm tra bản phát hành mới từ GitHub (Manifest/API) và kích hoạt Bootstrap Updater độc lập.
+"""
 import os
 import sys
 import json
 import urllib.request
 import urllib.error
 import ssl
-import threading
 import subprocess
-import zipfile
 import tempfile
 import shutil
 
 APP_VERSION = "2.6.1"
 GITHUB_REPO = "khoathoiloi/Tool_Tong_Hop_GUI"
+MANIFEST_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/update.json"
 API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
-def get_app_root_dir():
+def get_app_root_dir() -> str:
     """Lấy đúng đường dẫn thư mục gốc của app dù đang chạy EXE đóng gói hay chạy Python code"""
     if getattr(sys, 'frozen', False):
         exe_dir = os.path.dirname(sys.executable)
@@ -31,9 +34,13 @@ def get_app_root_dir():
             return parent
         return os.path.dirname(core_dir)
 
-def _compare_versions(current_v: str, latest_v: str) -> bool:
+def compare_versions(current_v: str, latest_v: str) -> bool:
+    """
+    So sánh phiên bản theo Semantic Versioning dạng số nguyên (Major.Minor.Patch).
+    Ví dụ: 2.10.0 > 2.9.0 (Trả về True nếu latest_v > current_v)
+    """
     def _parse(v):
-        v = v.lstrip('vV').strip()
+        v = str(v).lstrip('vV').strip()
         parts = []
         for p in v.split('.'):
             try:
@@ -42,18 +49,57 @@ def _compare_versions(current_v: str, latest_v: str) -> bool:
                 parts.append(0)
         while len(parts) < 3:
             parts.append(0)
-        return parts
+        return tuple(parts)
 
     return _parse(latest_v) > _parse(current_v)
 
-def check_for_updates(current_version=APP_VERSION, repo_name=GITHUB_REPO):
+def _compare_versions(current_v: str, latest_v: str) -> bool:
+    """Alias tương thích ngược"""
+    return compare_versions(current_v, latest_v)
+
+def check_for_updates(current_version=APP_VERSION, repo_name=GITHUB_REPO) -> dict:
+    """
+    Kiểm tra phiên bản mới từ GitHub:
+    1. Ưu tiên đọc update.json manifest.
+    2. Fallback sang GitHub Releases API nếu manifest chưa có hoặc lỗi.
+    """
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
 
+    # 1. Thử đọc từ update.json Manifest
+    manifest_url = f"https://raw.githubusercontent.com/{repo_name}/main/update.json"
+    try:
+        req = urllib.request.Request(manifest_url, headers={
+            'User-Agent': 'MasterToolHub-UpdaterClient',
+            'Accept': 'application/json'
+        })
+        with urllib.request.urlopen(req, context=ctx, timeout=8) as response:
+            if response.status == 200:
+                m_data = json.loads(response.read().decode('utf-8'))
+                latest_v = m_data.get('latest_version', '').lstrip('vV').strip()
+                if latest_v:
+                    has_update = compare_versions(current_version, latest_v)
+                    return {
+                        'has_update': has_update,
+                        'current_version': current_version,
+                        'latest_version': latest_v,
+                        'tag_name': f"v{latest_v}",
+                        'html_url': f"https://github.com/{repo_name}/releases/tag/v{latest_v}",
+                        'body': m_data.get('release_notes', 'Có phiên bản cập nhật mới trên GitHub!'),
+                        'package_url': m_data.get('package_url', ''),
+                        'package_sha256': m_data.get('package_sha256', ''),
+                        'updater_url': m_data.get('updater_url', ''),
+                        'updater_sha256': m_data.get('updater_sha256', ''),
+                        'download_url': m_data.get('package_url', '') # Tương thích code cũ
+                    }
+    except Exception:
+        pass # Fallback sang GitHub API bên dưới
+
+    # 2. Fallback sang GitHub Releases API chuẩn
     url = f"https://api.github.com/repos/{repo_name}/releases/latest"
     req = urllib.request.Request(url, headers={
-        'User-Agent': 'MasterToolHub-Updater',
+        'User-Agent': 'MasterToolHub-UpdaterClient',
         'Accept': 'application/vnd.github.v3+json'
     })
 
@@ -62,29 +108,37 @@ def check_for_updates(current_version=APP_VERSION, repo_name=GITHUB_REPO):
             if response.status == 200:
                 data = json.loads(response.read().decode('utf-8'))
                 tag_name = data.get('tag_name', '')
+                latest_v = tag_name.lstrip('vV').strip()
                 body = data.get('body', '')
                 html_url = data.get('html_url', '')
 
                 assets = data.get('assets', [])
-                download_url = ''
+                package_url = ''
+                updater_url = ''
                 asset_name = ''
+                
                 for a in assets:
-                    name = a.get('name', '').lower()
-                    if name.endswith('.zip') or name.endswith('.exe'):
-                        download_url = a.get('browser_download_url', '')
-                        asset_name = a.get('name', '')
-                        break
+                    name = a.get('name', '')
+                    name_lower = name.lower()
+                    if name_lower.endswith('.zip') or (name_lower.startswith('mastertoolhub') and name_lower.endswith('.exe')):
+                        package_url = a.get('browser_download_url', '')
+                        asset_name = name
+                    elif name_lower == 'updater.exe' or name_lower.startswith('updater'):
+                        updater_url = a.get('browser_download_url', '')
 
-                has_update = _compare_versions(current_version, tag_name)
+                has_update = compare_versions(current_version, latest_v)
 
                 return {
                     'has_update': has_update,
                     'current_version': current_version,
-                    'latest_version': tag_name.lstrip('vV'),
+                    'latest_version': latest_v,
                     'tag_name': tag_name,
                     'html_url': html_url,
                     'body': body,
-                    'download_url': download_url,
+                    'package_url': package_url,
+                    'package_sha256': '',
+                    'updater_url': updater_url,
+                    'download_url': package_url, # Tương thích code cũ
                     'asset_name': asset_name
                 }
     except Exception as e:
@@ -96,91 +150,86 @@ def check_for_updates(current_version=APP_VERSION, repo_name=GITHUB_REPO):
 
     return {'has_update': False, 'current_version': current_version}
 
-def download_and_apply_update(download_url, progress_cb=None, log_cb=None):
-    if not download_url:
-        if log_cb: log_cb("Không tìm thấy link tải bản cập nhật!", "ERROR")
+def bootstrap_and_launch_updater(update_info: dict, progress_cb=None, log_cb=None) -> bool:
+    """
+    Tải Bootstrap Updater mới nhất (nếu cần) và khởi chạy tiến trình Updater.exe độc lập.
+    Ứng dụng chính sau đó có thể đóng an toàn để nhường quyền cập nhật.
+    """
+    app_root = get_app_root_dir()
+    package_url = update_info.get('package_url') or update_info.get('download_url')
+    package_sha256 = update_info.get('package_sha256', '')
+    to_version = update_info.get('latest_version', '')
+    from_version = update_info.get('current_version', APP_VERSION)
+    updater_url = update_info.get('updater_url', '')
+
+    if not package_url:
+        if log_cb: log_cb("Không tìm thấy link tải gói cài đặt cập nhật!", "ERROR")
         return False
 
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
+    # 1. Tìm hoặc tải Updater.exe độc lập
+    updater_exe_path = os.path.join(app_root, "Updater.exe")
+    temp_updater_dir = os.path.join(tempfile.gettempdir(), "MasterToolUpdater")
+    os.makedirs(temp_updater_dir, exist_ok=True)
+    temp_updater_exe = os.path.join(temp_updater_dir, "Updater.exe")
 
-    app_root = get_app_root_dir()
-    temp_dir = tempfile.gettempdir()
-    temp_zip = os.path.join(temp_dir, "mastertool_update.zip")
-    staging_dir = os.path.join(temp_dir, "mastertool_staging")
+    # Nếu có Updater.exe sẵn trong app_root -> copy sang temp để chạy (tránh lock chính file updater trong app_root)
+    if os.path.exists(updater_exe_path) and os.path.getsize(updater_exe_path) > 1024:
+        try:
+            shutil.copy2(updater_exe_path, temp_updater_exe)
+        except Exception:
+            temp_updater_exe = updater_exe_path
+    elif updater_url:
+        # Nếu chưa có Updater.exe cục bộ, tải Bootstrap Updater trực tiếp từ GitHub Release
+        if log_cb: log_cb("Đang tải Bootstrap Updater từ GitHub...", "INFO")
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        try:
+            req = urllib.request.Request(updater_url, headers={'User-Agent': 'MasterToolHub-Bootstrap'})
+            with urllib.request.urlopen(req, context=ctx, timeout=30) as resp, open(temp_updater_exe, 'wb') as out_f:
+                shutil.copyfileobj(resp, out_f)
+        except Exception as e:
+            if log_cb: log_cb(f"Không thể tải Bootstrap Updater: {e}", "WARNING")
 
-    if os.path.exists(staging_dir):
-        shutil.rmtree(staging_dir, ignore_errors=True)
-    os.makedirs(staging_dir, exist_ok=True)
+    # Kiểm tra lại xem file Updater.exe đã sẵn sàng chưa
+    chosen_updater = temp_updater_exe if (os.path.exists(temp_updater_exe) and os.path.getsize(temp_updater_exe) > 1024) else updater_exe_path
+    if not os.path.exists(chosen_updater):
+        if log_cb: log_cb("Không tìm thấy Updater.exe! Vui lòng tải bản mới thủ công từ GitHub.", "ERROR")
+        return False
 
-    if log_cb: log_cb(f"⏳ Đang tải bản cập nhật từ: {download_url}...", "INFO")
+    # 2. Khởi chạy Updater.exe với các tham số hoàn chỉnh
+    current_pid = os.getpid()
+    relaunch_exe = "MasterToolHub.exe" if getattr(sys, 'frozen', False) else "run_app.bat"
+    
+    cmd_args = [
+        chosen_updater,
+        "--target-dir", app_root,
+        "--package-url", package_url,
+        "--package-sha256", package_sha256,
+        "--to-version", to_version,
+        "--from-version", from_version,
+        "--pid", str(current_pid),
+        "--relaunch-exe", relaunch_exe
+    ]
 
-    req = urllib.request.Request(download_url, headers={'User-Agent': 'MasterToolHub-Updater'})
-    with urllib.request.urlopen(req, context=ctx, timeout=120) as resp, open(temp_zip, 'wb') as out_f:
-        total_size = int(resp.headers.get('content-length', 0))
-        downloaded = 0
-        block_size = 131072
-
-        while True:
-            buffer = resp.read(block_size)
-            if not buffer:
-                break
-            downloaded += len(buffer)
-            out_f.write(buffer)
-            if total_size > 0 and progress_cb:
-                pct = int(downloaded / total_size * 100)
-                progress_cb(pct, downloaded, total_size)
-
-    if log_cb: log_cb("📦 Đang giải nén dữ liệu cập nhật...", "INFO")
+    if log_cb: log_cb("🚀 Đang khởi chạy MasterToolHub Updater...", "SUCCESS")
 
     try:
-        with zipfile.ZipFile(temp_zip, 'r') as zip_ref:
-            zip_ref.extractall(staging_dir)
+        if os.name == 'nt':
+            creationflags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+            subprocess.Popen(cmd_args, cwd=app_root, creationflags=creationflags, close_fds=True)
+        else:
+            subprocess.Popen(cmd_args, cwd=app_root, start_new_session=True)
+        return True
     except Exception as e:
-        if log_cb: log_cb(f"❌ Lỗi giải nén ZIP: {e}", "ERROR")
+        if log_cb: log_cb(f"Lỗi khởi chạy Updater: {e}", "ERROR")
         return False
-    finally:
-        if os.path.exists(temp_zip):
-            try: os.remove(temp_zip)
-            except Exception: pass
 
-    # Tìm đúng thư mục gốc chứa MasterToolHub.exe trong staging
-    source_copy_dir = staging_dir
-    for root, dirs, files in os.walk(staging_dir):
-        if "MasterToolHub.exe" in files or ("core" in dirs and "modules" in dirs):
-            source_copy_dir = root
-            break
-
-    if log_cb: log_cb("🔄 Đang kích hoạt tiến trình ghi đè và tự khởi động lại...", "SUCCESS")
-
-    is_frozen = getattr(sys, 'frozen', False)
-    exe_name = "MasterToolHub.exe"
-    exe_target = os.path.join(app_root, exe_name)
-    run_bat_target = os.path.join(app_root, "run_app.bat")
-
-    relaunch_cmd = f'start "" "{exe_target}"' if (is_frozen or os.path.exists(exe_target)) else f'start "" "{run_bat_target}"'
-
-    bat_path = os.path.join(temp_dir, "apply_mastertool_update.bat")
-    bat_content = f"""@echo off
-title DANG CAP NHAT MASTER TOOL HUB...
-ping 127.0.0.1 -n 3 > nul
-taskkill /F /IM MasterToolHub.exe /T > nul 2>&1
-ping 127.0.0.1 -n 2 > nul
-
-xcopy "{source_copy_dir}\\*" "{app_root}\\" /E /Y /I /Q /R /H /K > nul
-rmdir /s /q "{staging_dir}" > nul 2>&1
-{relaunch_cmd}
-del "%~f0" > nul 2>&1
-exit
-"""
-    with open(bat_path, "w", encoding="utf-8") as f:
-        f.write(bat_content)
-
-    if os.name == 'nt':
-        creationflags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-        subprocess.Popen(["cmd.exe", "/c", bat_path], creationflags=creationflags, close_fds=True)
-    else:
-        subprocess.Popen(["sh", bat_path], start_new_session=True)
-
-    return True
+def download_and_apply_update(download_url, progress_cb=None, log_cb=None) -> bool:
+    """Tương thích ngược với code cũ của Tab Settings"""
+    info = {
+        'package_url': download_url,
+        'latest_version': 'New',
+        'current_version': APP_VERSION
+    }
+    return bootstrap_and_launch_updater(info, progress_cb=progress_cb, log_cb=log_cb)
