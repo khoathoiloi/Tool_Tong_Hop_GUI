@@ -173,7 +173,7 @@ class MasterToolUpdaterApp(tk.Tk):
                         return {
                             "package_url": pkg_url,
                             "package_sha256": (data.get("package_sha256") or data.get("sha256") or "").strip().lower(),
-                            "latest_version": data.get("latest_version", "2.7.0").lstrip("vV").strip()
+                            "latest_version": data.get("latest_version", "2.7.1").lstrip("vV").strip()
                         }
         except Exception as e:
             self.logger.log(f"Không thể đọc update.json ({e}), chuyển sang GitHub Releases API...", "WARNING")
