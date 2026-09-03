@@ -1,11 +1,11 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 from datetime import datetime
 from pathlib import Path
 import openpyxl
 
 DEFAULT_COMMENT_1 = "watch full here 👉:"
 
-def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_dir_str, progress_cb=None, excel_type="token", comment1_text=DEFAULT_COMMENT_1):
+def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_dir_str, progress_cb=None, excel_type="token", comment1_text=DEFAULT_COMMENT_1, include_comment=True):
     kho_path = Path(kho_path_str)
     output_dir = Path(output_dir_str)
     total_valid_videos = len(valid_items)
@@ -21,17 +21,24 @@ def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_
         group_pages = pages[page_idx : page_idx + pages_per_video]
         used_folders.append(current_video['folder_path'])
         
-        # Link raw/shortened URL
-        raw_or_short_url = current_video.get('raw_link', '')
-        # Nếu first_comment có dạng "watch full here 👉: https://..." thì trích xuất phần URL
-        fc = current_video.get('first_comment', '')
-        if fc:
-            import re
-            m = re.search(r'https?://[^\s]+', fc)
-            if m:
-                raw_or_short_url = m.group(0)
-            elif not raw_or_short_url:
-                raw_or_short_url = fc
+        # Xử lý gán bình luận: chỉ gán khi include_comment=True
+        if include_comment:
+            raw_or_short_url = current_video.get('raw_link', '')
+            fc = current_video.get('first_comment', '')
+            if fc:
+                import re
+                m = re.search(r'https?://[^\s]+', fc)
+                if m:
+                    raw_or_short_url = m.group(0)
+                elif not raw_or_short_url:
+                    raw_or_short_url = fc
+            final_c1 = comment1_text.strip() if comment1_text else ""
+            final_c2 = raw_or_short_url
+            final_fc = current_video.get('first_comment', '')
+        else:
+            final_c1 = None
+            final_c2 = None
+            final_fc = None
 
         for p in group_pages:
             if excel_type == "token":
@@ -56,8 +63,8 @@ def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_
                     'post_type': 'Reel',
                     'caption': current_video['caption'],
                     'video_path': current_video['video_path'],
-                    'comment_1': comment1_text.strip(),
-                    'comment_2': raw_or_short_url,
+                    'comment_1': final_c1,
+                    'comment_2': final_c2,
                     'post_date': None,
                     'post_time': None,
                     'timezone': None,
@@ -72,7 +79,7 @@ def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_
                     'post_type': 'Reel',
                     'caption': current_video['caption'],
                     'video_path': current_video['video_path'],
-                    'first_comment': current_video.get('first_comment', ''),
+                    'first_comment': final_fc,
                     'post_date': None,
                     'post_time': None,
                     'timezone': None,
