@@ -5,7 +5,7 @@ import openpyxl
 
 DEFAULT_COMMENT_1 = "watch full here 👉:"
 
-def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_dir_str, progress_cb=None, excel_type="token", comment1_text=DEFAULT_COMMENT_1, include_comment=True):
+def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_dir_str, progress_cb=None, excel_type="token", comment1_text=DEFAULT_COMMENT_1, is_shortened=True):
     kho_path = Path(kho_path_str)
     output_dir = Path(output_dir_str)
     total_valid_videos = len(valid_items)
@@ -21,24 +21,32 @@ def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_
         group_pages = pages[page_idx : page_idx + pages_per_video]
         used_folders.append(current_video['folder_path'])
         
-        # Xử lý gán bình luận: chỉ gán khi include_comment=True
-        if include_comment:
-            raw_or_short_url = current_video.get('raw_link', '')
-            fc = current_video.get('first_comment', '')
-            if fc:
-                import re
-                m = re.search(r'https?://[^\s]+', fc)
-                if m:
-                    raw_or_short_url = m.group(0)
-                elif not raw_or_short_url:
-                    raw_or_short_url = fc
+        # Trích xuất link (link gốc hoặc link rút gọn)
+        raw_or_short_url = current_video.get('raw_link', '')
+        fc = current_video.get('first_comment', '')
+        if not raw_or_short_url and fc:
+            import re
+            m = re.search(r'https?://[^\s]+', fc)
+            if m:
+                raw_or_short_url = m.group(0)
+            else:
+                raw_or_short_url = fc
+
+        # Xử lý gán bình luận:
+        if is_shortened:
+            # Khi CÓ rút gọn link:
+            # - Token V5: Bình luận 1 là text dẫn (watch full here), Bình luận 2 là link rút gọn
+            # - File Thường: Bình luận đầu tiên là "text dẫn + link rút gọn"
             final_c1 = comment1_text.strip() if comment1_text else ""
             final_c2 = raw_or_short_url
-            final_fc = current_video.get('first_comment', '')
+            final_fc = f"{comment1_text.strip()} {raw_or_short_url}".strip() if comment1_text else raw_or_short_url
         else:
-            final_c1 = None
+            # Khi KHÔNG rút gọn link: Lấy THẲNG LINK trong file txt (không chèn chữ dẫn bình luận)
+            # - Token V5: Bình luận 1 lấy thẳng link trong txt, Bình luận 2 để trống
+            # - File Thường: Bình luận đầu tiên lấy thẳng link trong txt
+            final_c1 = raw_or_short_url if raw_or_short_url else None
             final_c2 = None
-            final_fc = None
+            final_fc = raw_or_short_url if raw_or_short_url else None
 
         for p in group_pages:
             if excel_type == "token":

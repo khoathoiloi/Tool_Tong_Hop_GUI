@@ -329,7 +329,7 @@ class ExcelFanpageView(ttk.Frame):
         if self.chk_auto_shorten_var.get():
             self.logger.highlight(f"⚡ Đang BẬT chế độ Tự động rút gọn link ShiftLink (Tên miền: {self.cbo_shorten_domain.get()})")
         else:
-            self.logger.info("ℹ️ Chế độ rút gọn link đang TẮT -> File Excel xuất ra sẽ ĐỂ TRỐNG bình luận (không tự gán link).")
+            self.logger.info("ℹ️ Chế độ rút gọn link đang TẮT -> Sẽ lấy THẲNG LINK gốc trong file txt vào file Excel.")
 
         if len(items) >= needed_videos:
             self.logger.success("✅ ĐỦ VIDEO ĐỂ GHÉP TOÀN BỘ DANH SÁCH PAGE!")
@@ -433,7 +433,7 @@ class ExcelFanpageView(ttk.Frame):
                     else:
                         self.logger.warning("Các folder video không có dòng link gốc trong link-da-dang.txt để rút gọn.")
                 else:
-                    self.logger.info("ℹ️ Chế độ rút gọn link đang TẮT -> Không tự gán bình luận vào file Excel.")
+                    self.logger.info("ℹ️ Chế độ rút gọn link đang TẮT -> Lấy THẲNG LINK gốc trong file txt vào bình luận (không chèn chữ dẫn).")
 
                 # Xuất file Excel với đúng định dạng (13 cột chuẩn V5 hoặc 11 cột)
                 def _prog(cur, total, msg):
@@ -450,7 +450,7 @@ class ExcelFanpageView(ttk.Frame):
                     progress_cb=_prog,
                     excel_type=excel_type,
                     comment1_text=comment1_text,
-                    include_comment=auto_shorten
+                    is_shortened=(auto_shorten and shortened_applied > 0)
                 )
                 
                 if self.chk_avoid_dup_var.get() and result["used_folders"]:
@@ -468,9 +468,9 @@ class ExcelFanpageView(ttk.Frame):
                     if shortened_applied > 0:
                         summary_msg += f"\n\n⚡ Rút gọn ShiftLink: ĐÃ RÚT GỌN THÀNH CÔNG ({shortened_applied} link)."
                     else:
-                        summary_msg += f"\n\n⚠️ Rút gọn ShiftLink: DÙNG LINK GỐC (Chưa rút gọn do chưa đăng nhập)."
+                        summary_msg += f"\n\n⚠️ Rút gọn ShiftLink: DÙNG LINK GỐC TRONG TXT."
                 else:
-                    summary_msg += f"\n\nℹ️ Bình luận: ĐÃ TẮT (Không gán bình luận vào file Excel theo yêu cầu)."
+                    summary_msg += f"\n\nℹ️ Link bình luận: ĐÃ LẤY THẲNG LINK TRONG TXT (Không rút gọn)."
 
                 messagebox.showinfo("Thành công", summary_msg)
             except Exception as e:
