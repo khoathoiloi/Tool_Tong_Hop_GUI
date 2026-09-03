@@ -5,6 +5,7 @@ MasterToolHub Bootstrap Updater (Standalone Auto-Updater)
 """
 import os
 import sys
+import re
 import time
 import json
 import shutil
@@ -81,12 +82,18 @@ class MasterToolUpdaterApp(tk.Tk):
         super().__init__()
         self.args = args
         self.target_dir = os.path.abspath(args.target_dir or os.getcwd())
-        self.package_url = args.package_url
+        self.package_url = (args.package_url or "").strip()
         self.package_sha256 = (args.package_sha256 or "").strip().lower()
-        self.to_version = args.to_version or "Latest"
-        self.from_version = args.from_version or "Current"
+        self.to_version = (args.to_version or "").lstrip("vV").strip() or "Latest"
         self.target_pid = args.pid
         self.relaunch_exe = args.relaunch_exe or "MasterToolHub.exe"
+
+        # Tự động phát hiện from_version nếu chưa có
+        from_v = (args.from_version or "").lstrip("vV").strip()
+        if not from_v or from_v.lower() == "current":
+            self.from_version = self._detect_current_version()
+        else:
+            self.from_version = from_v
         
         # Setup đường dẫn thư mục tạm và log
         self.temp_base = os.path.join(tempfile.gettempdir(), "MasterToolUpdater")
@@ -115,6 +122,92 @@ class MasterToolUpdaterApp(tk.Tk):
         # Bắt đầu luồng cập nhật sau khi GUI render
         self.after(500, self._start_update_thread)
 
+    def _detect_current_version(self) -> str:
+        """Tự động phát hiện phiên bản hiện tại từ file state, tên folder hoặc version file"""
+        # 1. Thử đọc từ update_state.json
+        state_file = os.path.join(self.target_dir, "update_state.json")
+        if os.path.exists(state_file):
+            try:
+                with open(state_file, "r", encoding="utf-8") as f:
+                    st = json.load(f)
+                    if st.get("to_version") and st.get("to_version") != "Latest":
+                        return st["to_version"]
+                    if st.get("from_version") and st.get("from_version") != "Current":
+                        return st["from_version"]
+            except Exception:
+                pass
+
+        # 2. Thử bóc tách từ tên thư mục (ví dụ MasterToolHub_v2.5.1 -> 2.5.1)
+        folder_name = os.path.basename(self.target_dir)
+        m = re.search(r'v?(\d+\.\d+(?:\.\d+)?)', folder_name, re.IGNORECASE)
+        if m:
+            return m.group(1)
+
+        # 3. Thử đọc file version.txt nếu có
+        ver_file = os.path.join(self.target_dir, "version.txt")
+        if os.path.exists(ver_file):
+            try:
+                with open(ver_file, "r", encoding="utf-8") as f:
+                    return f.read().strip().lstrip("vV")
+            except Exception:
+                pass
+
+        return "2.5.1"
+
+    def _fetch_latest_release_info(self) -> dict:
+        """Tự động truy vấn gói cập nhật mới nhất từ GitHub Manifest hoặc Releases API"""
+        repo_name = "khoathoiloi/Tool_Tong_Hop_GUI"
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+
+        # 1. Thử đọc update.json trên GitHub main branch
+        manifest_url = f"https://raw.githubusercontent.com/{repo_name}/main/update.json"
+        try:
+            req = urllib.request.Request(manifest_url, headers={"User-Agent": "MasterToolHub-BootstrapUpdater"})
+            with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    pkg_url = data.get("package_url") or data.get("download_url")
+                    if pkg_url:
+                        return {
+                            "package_url": pkg_url,
+                            "package_sha256": (data.get("package_sha256") or data.get("sha256") or "").strip().lower(),
+                            "latest_version": data.get("latest_version", "2.7.0").lstrip("vV").strip()
+                        }
+        except Exception as e:
+            self.logger.log(f"Không thể đọc update.json ({e}), chuyển sang GitHub Releases API...", "WARNING")
+
+        # 2. Fallback sang GitHub Releases API
+        api_url = f"https://api.github.com/repos/{repo_name}/releases/latest"
+        try:
+            req = urllib.request.Request(api_url, headers={
+                "User-Agent": "MasterToolHub-BootstrapUpdater",
+                "Accept": "application/vnd.github.v3+json"
+            })
+            with urllib.request.urlopen(req, context=ctx, timeout=12) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    tag = data.get("tag_name", "").lstrip("vV").strip()
+                    for a in data.get("assets", []):
+                        aname = a.get("name", "").lower()
+                        if aname.endswith(".zip") or (aname.startswith("mastertoolhub") and aname.endswith(".exe")):
+                            return {
+                                "package_url": a.get("browser_download_url"),
+                                "package_sha256": "",
+                                "latest_version": tag
+                            }
+        except Exception as e:
+            self.logger.log(f"Lỗi truy vấn GitHub Releases API: {e}", "ERROR")
+
+        return {}
+
+    def _update_header_version(self):
+        try:
+            self.lbl_version_header.config(text=f"Đang nâng cấp từ v{self.from_version}  ➔  v{self.to_version}")
+        except Exception:
+            pass
+
     def _build_ui(self):
         # Header Box
         header = tk.Frame(self, bg=THEME["card"], pady=12, padx=16)
@@ -128,13 +221,14 @@ class MasterToolUpdaterApp(tk.Tk):
             fg=THEME["accent"]
         ).pack(anchor="w")
         
-        tk.Label(
+        self.lbl_version_header = tk.Label(
             header,
             text=f"Đang nâng cấp từ v{self.from_version}  ➔  v{self.to_version}",
             font=("Segoe UI", 9, "bold"),
             bg=THEME["card"],
             fg=THEME["success"]
-        ).pack(anchor="w", pady=(2, 0))
+        )
+        self.lbl_version_header.pack(anchor="w", pady=(2, 0))
 
         content = tk.Frame(self, bg=THEME["bg"], padx=16, pady=12)
         content.pack(fill=tk.BOTH, expand=True)
@@ -253,8 +347,25 @@ class MasterToolUpdaterApp(tk.Tk):
         self.logger.log(f"Thư mục cài đặt: {self.target_dir}", "INFO")
         self.logger.log(f"Nâng cấp: v{self.from_version} -> v{self.to_version}", "INFO")
 
+        # BƯỚC 0: Tự động truy vấn gói cập nhật từ GitHub nếu chạy độc lập (package_url trống)
+        if not self.package_url:
+            self._set_status("🌐 Đang kiểm tra bản cập nhật mới từ GitHub...", "Đang kết nối tới GitHub để lấy thông tin phát hành...", 5)
+            self.logger.log("Chưa có URL gói cập nhật, đang tự động kết nối GitHub...", "INFO")
+            info = self._fetch_latest_release_info()
+            if info and info.get("package_url"):
+                self.package_url = info["package_url"]
+                self.package_sha256 = info.get("package_sha256", self.package_sha256)
+                if info.get("latest_version"):
+                    self.to_version = info["latest_version"]
+                self.after(0, self._update_header_version)
+                self.logger.log(f"Đã lấy link cập nhật thành công: v{self.to_version} ({self.package_url})", "SUCCESS")
+            else:
+                self.logger.log("Không thể lấy đường dẫn tải gói cập nhật từ GitHub!", "ERROR")
+                self._handle_failure("DOWNLOAD_FAILED", "Không thể lấy đường dẫn tải gói cập nhật từ GitHub. Vui lòng kiểm tra kết nối mạng và thử lại sau.")
+                return
+
         # BƯỚC 1: Đợi ứng dụng chính thoát hoàn toàn và giải phóng File Lock
-        self._set_status("⏳ Đang đợi ứng dụng cũ đóng...", "Đang kiểm tra và giải phóng khóa file hệ thống...", 5)
+        self._set_status("⏳ Đang đợi ứng dụng cũ đóng...", "Đang kiểm tra và giải phóng khóa file hệ thống...", 8)
         if not self._wait_for_process_exit(self.target_pid, timeout=12):
             self.logger.log("Cảnh báo: Không thể đóng hoàn toàn ứng dụng cũ qua PID, đang tiến hành đóng an toàn...", "WARNING")
             self._kill_process_by_name("MasterToolHub.exe")
@@ -266,7 +377,7 @@ class MasterToolUpdaterApp(tk.Tk):
             return
 
         # BƯỚC 2: Tải gói cập nhật với cơ chế Retry & Exponential Backoff
-        self._set_status("📥 Đang tải bản cập nhật mới từ GitHub...", "Đang kết nối và tải gói cài đặt an toàn...", 10)
+        self._set_status("📥 Đang tải bản cập nhật mới từ GitHub...", "Đang kết nối và tải gói cài đặt an toàn...", 12)
         zip_file = self._download_package_with_retry(self.package_url, max_retries=3)
         if not zip_file:
             self._handle_failure("DOWNLOAD_FAILED", "Không thể tải gói cập nhật từ GitHub. Vui lòng kiểm tra kết nối mạng và thử lại sau.")
