@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 import os
 import json
 import threading
@@ -29,7 +29,7 @@ class ExcelFanpageView(ttk.Frame):
         self.root = root
         self.cfg_mgr = ConfigMgr()
         self.app_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        self.user_data_dir = os.path.join(self.app_dir, "user_data")
+        self.user_data_dir = os.path.join(os.path.expanduser("~"), ".master_tool_hub", "shiftlink_profile")
         self.domain_cfg_file = os.path.join(self.app_dir, "user_domains.json")
         self.domains_list = self._load_saved_domains()
         self.stop_requested = False
@@ -380,6 +380,7 @@ class ExcelFanpageView(ttk.Frame):
                 selected_items = items[:needed_videos]
 
                 # ⚡ NẾU BẬT TỰ ĐỘNG RÚT GỌN LINK
+                shortened_applied = 0
                 if auto_shorten:
                     raw_urls_to_shorten = [it["raw_link"] for it in selected_items if it.get("raw_link")]
                     if raw_urls_to_shorten:
@@ -405,7 +406,6 @@ class ExcelFanpageView(ttk.Frame):
                             stop_check_cb=_stop_check
                         )
 
-                        shortened_applied = 0
                         for it in selected_items:
                             orig_link = it.get("raw_link", "")
                             if orig_link in url_map:
@@ -414,7 +414,20 @@ class ExcelFanpageView(ttk.Frame):
                                 it["first_comment"] = f"{comment1_text} {new_short_url}"
                                 shortened_applied += 1
 
-                        self.logger.success(f"✅ Đã gán {shortened_applied} link rút gọn mới vào 'Bình luận 2 (Trả lời)'!")
+                        if shortened_applied == 0:
+                            self.logger.error("❌ RÚT GỌN LINK THẤT BẠI: Không có link nào được rút gọn qua ShiftLink!")
+                            ans = messagebox.askyesno(
+                                "Rút Gọn Link Thất Bại",
+                                "Không rút gọn được link nào qua ShiftLink (do chưa đăng nhập tài khoản trên Chrome hoặc đóng trình duyệt).\n\n"
+                                "Bạn có muốn tiếp tục xuất file Excel với LINK GỐC không?\n"
+                                "(Bấm [No] để hủy và thử lại sau khi đăng nhập ShiftLink)"
+                            )
+                            if not ans:
+                                self.logger.warning("Đã dừng tiến trình xuất Excel do rút gọn link không thành công.")
+                                return
+                            self.logger.warning("Tiếp tục xuất file Excel với LINK GỐC theo yêu cầu...")
+                        else:
+                            self.logger.success(f"✅ Đã rút gọn thành công & gán {shortened_applied}/{len(raw_urls_to_shorten)} link ShiftLink vào 'Bình luận 2 (Trả lời)'!")
                     else:
                         self.logger.warning("Các folder video không có dòng link gốc trong link-da-dang.txt để rút gọn.")
 
@@ -445,7 +458,14 @@ class ExcelFanpageView(ttk.Frame):
                 if result["total_pages_left"] > 0:
                     self.logger.warning(f"⚠️ Page chưa ghép (do thiếu video): {result['total_pages_left']} (Lưu tại: {result['unused_file']})")
 
-                messagebox.showinfo("Thành công", f"ĐÃ TẠO FILE EXCEL VÀ RÚT GỌN LINK THÀNH CÔNG!\n\n📁 File Excel:\n{result['excel_path']}\n\n📋 Loại: {excel_type_label}\n✅ Đã xử lý: {result['total_pages_done']} Page.")
+                summary_msg = f"ĐÃ TẠO FILE EXCEL THÀNH CÔNG!\n\n📁 File Excel:\n{result['excel_path']}\n\n📋 Loại: {excel_type_label}\n✅ Đã xử lý: {result['total_pages_done']} Page."
+                if auto_shorten:
+                    if shortened_applied > 0:
+                        summary_msg += f"\n\n⚡ Rút gọn ShiftLink: ĐÃ RÚT GỌN THÀNH CÔNG ({shortened_applied} link)."
+                    else:
+                        summary_msg += f"\n\n⚠️ Rút gọn ShiftLink: DÙNG LINK GỐC (Chưa rút gọn do chưa đăng nhập)."
+
+                messagebox.showinfo("Thành công", summary_msg)
             except Exception as e:
                 self.logger.error(f"Lỗi trong quá trình xử lý: {e}")
                 messagebox.showerror("Lỗi", f"Lỗi: {e}")

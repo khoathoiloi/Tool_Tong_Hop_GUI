@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 import os
 import json
 import threading
@@ -27,7 +27,7 @@ class ShiftLinkShortenerView(ttk.Frame):
         self.is_running = False
         self.stop_requested = False
         self.app_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        self.user_data_dir = os.path.join(self.app_dir, "user_data")
+        self.user_data_dir = os.path.join(os.path.expanduser("~"), ".master_tool_hub", "shiftlink_profile")
         self.domain_cfg_file = os.path.join(self.app_dir, "user_domains.json")
         self.domains_list = self._load_saved_domains()
         self._build_ui()

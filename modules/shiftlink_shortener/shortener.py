@@ -92,19 +92,68 @@ def wait_for_user_login(page, log_cb, stop_check_cb):
             pass
     return False
 
+def _launch_smart_browser_context(playwright, user_data_dir, headless, log_cb=None):
+    """Khởi chạy persistent context thông minh hỗ trợ đa kênh (Chrome -> Edge -> Candidate Exe)"""
+    os.makedirs(user_data_dir, exist_ok=True)
+    args = ["--start-maximized"] if not headless else []
+
+    # 1. Thử các kênh chuẩn hệ thống (Chrome -> Edge)
+    for channel in ["chrome", "msedge"]:
+        try:
+            ctx = playwright.chromium.launch_persistent_context(
+                user_data_dir=user_data_dir,
+                channel=channel,
+                headless=headless,
+                args=args,
+                no_viewport=not headless
+            )
+            return ctx
+        except Exception:
+            pass
+
+    # 2. Quét các đường dẫn file exe trình duyệt phổ biến trên Windows
+    candidate_paths = [
+        os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+        os.path.expandvars(r"%PROGRAMFILES%\Google\Chrome\Application\chrome.exe"),
+        os.path.expandvars(r"%PROGRAMFILES(X86)%\Google\Chrome\Application\chrome.exe"),
+        os.path.expandvars(r"%PROGRAMFILES(X86)%\Microsoft\Edge\Application\msedge.exe"),
+        os.path.expandvars(r"%PROGRAMFILES%\Microsoft\Edge\Application\msedge.exe"),
+        os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\Edge\Application\msedge.exe"),
+        os.path.expandvars(r"%LOCALAPPDATA%\BraveSoftware\Brave-Browser\Application\brave.exe"),
+        os.path.expandvars(r"%PROGRAMFILES%\BraveSoftware\Brave-Browser\Application\brave.exe")
+    ]
+    for exe in candidate_paths:
+        if os.path.isfile(exe):
+            try:
+                ctx = playwright.chromium.launch_persistent_context(
+                    user_data_dir=user_data_dir,
+                    executable_path=exe,
+                    headless=headless,
+                    args=args,
+                    no_viewport=not headless
+                )
+                return ctx
+            except Exception:
+                pass
+
+    # 3. Thử Chromium mặc định nếu có
+    try:
+        return playwright.chromium.launch_persistent_context(
+            user_data_dir=user_data_dir,
+            headless=headless,
+            args=args,
+            no_viewport=not headless
+        )
+    except Exception as e:
+        raise RuntimeError(f"Không thể khởi chạy bất kỳ trình duyệt nào (Chrome/Edge/Brave): {e}")
+
 def fetch_domains_from_web(user_data_dir, log_cb, stop_check_cb):
     os.makedirs(user_data_dir, exist_ok=True)
     domains = []
     
     with sync_playwright() as playwright:
         try:
-            context = playwright.chromium.launch_persistent_context(
-                user_data_dir=user_data_dir,
-                channel="chrome",
-                headless=False,
-                args=["--start-maximized"],
-                no_viewport=True
-            )
+            context = _launch_smart_browser_context(playwright, user_data_dir, headless=False, log_cb=log_cb)
             page = context.pages[0] if context.pages else context.new_page()
             page.goto(TARGET_URL, wait_until="domcontentloaded")
 
@@ -142,13 +191,7 @@ def shorten_multiple_urls(raw_urls, selected_domain, show_browser, user_data_dir
 
     with sync_playwright() as playwright:
         try:
-            context = playwright.chromium.launch_persistent_context(
-                user_data_dir=user_data_dir,
-                channel="chrome",
-                headless=not show_browser,
-                args=["--start-maximized"] if show_browser else [],
-                no_viewport=True if show_browser else False
-            )
+            context = _launch_smart_browser_context(playwright, user_data_dir, headless=not show_browser, log_cb=log_cb)
             page = context.pages[0] if context.pages else context.new_page()
             page.goto(TARGET_URL, wait_until="domcontentloaded")
 
@@ -273,13 +316,7 @@ def run_shorten_automation(excel_path, selected_domain, show_browser, target_she
 
     with sync_playwright() as playwright:
         try:
-            context = playwright.chromium.launch_persistent_context(
-                user_data_dir=user_data_dir,
-                channel="chrome",
-                headless=not show_browser,
-                args=["--start-maximized"] if show_browser else [],
-                no_viewport=True if show_browser else False
-            )
+            context = _launch_smart_browser_context(playwright, user_data_dir, headless=not show_browser, log_cb=log_cb)
             page = context.pages[0] if context.pages else context.new_page()
             page.goto(TARGET_URL, wait_until="domcontentloaded")
 
