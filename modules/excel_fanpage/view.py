@@ -433,7 +433,7 @@ class ExcelFanpageView(ttk.Frame):
                     else:
                         self.logger.warning("Các folder video không có dòng link gốc trong link-da-dang.txt để rút gọn.")
                 else:
-                    self.logger.info("ℹ️ Chế độ rút gọn link đang TẮT -> Lấy THẲNG LINK gốc trong file txt vào bình luận (không chèn chữ dẫn).")
+                    self.logger.info("ℹ️ Chế độ rút gọn link đang TẮT -> Lấy link gốc trong file txt vào file Excel.")
 
                 # Xuất file Excel với đúng định dạng (13 cột chuẩn V5 hoặc 11 cột)
                 def _prog(cur, total, msg):
@@ -470,7 +470,7 @@ class ExcelFanpageView(ttk.Frame):
                     else:
                         summary_msg += f"\n\n⚠️ Rút gọn ShiftLink: DÙNG LINK GỐC TRONG TXT."
                 else:
-                    summary_msg += f"\n\nℹ️ Link bình luận: ĐÃ LẤY THẲNG LINK TRONG TXT (Không rút gọn)."
+                    summary_msg += f"\n\nℹ️ Link bài viết: Lấy link gốc từ file txt (Không rút gọn)."
 
                 messagebox.showinfo("Thành công", summary_msg)
             except Exception as e:

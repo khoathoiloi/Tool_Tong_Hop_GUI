@@ -33,20 +33,23 @@ def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_
                 raw_or_short_url = fc
 
         # Xử lý gán bình luận:
-        if is_shortened:
-            # Khi CÓ rút gọn link:
-            # - Token V5: Bình luận 1 là text dẫn (watch full here), Bình luận 2 là link rút gọn
-            # - File Thường: Bình luận đầu tiên là "text dẫn + link rút gọn"
-            final_c1 = comment1_text.strip() if comment1_text else ""
-            final_c2 = raw_or_short_url
-            final_fc = f"{comment1_text.strip()} {raw_or_short_url}".strip() if comment1_text else raw_or_short_url
+        c1_clean = (comment1_text or "").strip()
+        link_target = raw_or_short_url.strip() if raw_or_short_url else ""
+
+        if c1_clean:
+            # Người dùng CÓ để nội dung bình luận (ví dụ: "watch full here 👉:"):
+            # - Token V5: Bình luận 1 là nội dung đó, Bình luận 2 (Trả lời) là link (link rút gọn hoặc link gốc từ txt)
+            # - File Thường: Bình luận đầu tiên là "nội dung + link"
+            final_c1 = c1_clean
+            final_c2 = link_target if link_target else None
+            final_fc = f"{c1_clean} {link_target}".strip() if link_target else c1_clean
         else:
-            # Khi KHÔNG rút gọn link: Lấy THẲNG LINK trong file txt (không chèn chữ dẫn bình luận)
-            # - Token V5: Bình luận 1 lấy thẳng link trong txt, Bình luận 2 để trống
+            # Người dùng ĐỂ TRỐNG ô bình luận (xóa trắng):
+            # - Token V5: Bình luận 1 lấy thẳng link trong txt, Bình luận 2 để trống None
             # - File Thường: Bình luận đầu tiên lấy thẳng link trong txt
-            final_c1 = raw_or_short_url if raw_or_short_url else None
+            final_c1 = link_target if link_target else None
             final_c2 = None
-            final_fc = raw_or_short_url if raw_or_short_url else None
+            final_fc = link_target if link_target else None
 
         for p in group_pages:
             if excel_type == "token":
