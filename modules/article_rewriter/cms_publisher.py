@@ -122,6 +122,11 @@ class CMSPublisher:
             "format_type": "default"
         }
 
+        if image_path and str(image_path).strip().lower().startswith(('http://', 'https://')):
+            fields["image"] = str(image_path).strip()
+        else:
+            fields.setdefault("image", "")
+
         # Xác định URL đăng bài
         if custom_endpoint:
             url = custom_endpoint if custom_endpoint.startswith("http") else f"{base}{custom_endpoint}"

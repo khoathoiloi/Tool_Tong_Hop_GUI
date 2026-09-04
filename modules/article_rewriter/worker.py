@@ -243,6 +243,157 @@ def write_result_to_source_file(file_path: str, new_title: str, new_link: str) -
         return False, f"Lỗi ghi file {os.path.basename(file_path)}: {str(e)}"
 
 
+def art_youtube_id(url: str) -> str:
+    """Trích xuất YouTube video ID từ URL bất kỳ"""
+    if not url:
+        return ""
+    m = re.search(r'(?:youtube\.com/(?:watch\?v=|embed/|shorts/|v/)|youtu\.be/)([A-Za-z0-9_-]{11})', str(url), re.I)
+    return m.group(1) if m else ""
+
+
+def art_embed_html(source: str, autoplay: bool = False) -> str:
+    """Tạo mã HTML responsive iframe từ link YouTube, iframe thô hoặc video URL"""
+    source = str(source or "").strip()
+    if not source:
+        return ""
+    if source.lower().startswith("<iframe") and "</iframe>" in source.lower():
+        return (
+            '<div style="text-align:center;margin:18px 0">'
+            '<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;border-radius:8px">'
+            f'{source}</div></div>'
+        )
+    yid = art_youtube_id(source)
+    if yid:
+        auto_param = "&autoplay=1&mute=1" if autoplay else ""
+        src = f"https://www.youtube.com/embed/{yid}?rel=0&modestbranding=1&playsinline=1{auto_param}"
+        return (
+            '<div style="text-align:center;margin:18px 0">'
+            '<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;border-radius:8px">'
+            f'<iframe src="{src}" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" '
+            'title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" '
+            'referrerpolicy="strict-origin-when-cross-origin" allowfullscreen loading="lazy"></iframe></div></div>'
+        )
+    if source.lower().startswith("http"):
+        return (
+            '<div style="text-align:center;margin:18px 0">'
+            '<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;border-radius:8px">'
+            f'<iframe src="{source}" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" '
+            'frameborder="0" allowfullscreen loading="lazy"></iframe></div></div>'
+        )
+    return ""
+
+
+def art_build_html(
+    description: str,
+    image_urls: List[str] = None,
+    embed_source: str = "",
+    embed_pos: str = "Sau đoạn đầu"
+) -> str:
+    """
+    Ghép bài viết mới dạng HTML theo chuẩn Golden ToolXaoBaiBao_V3:
+    - Rải đều toàn bộ hình ảnh minh họa xen kẽ giữa các đoạn văn.
+    - Nhúng video / iframe responsive tại vị trí người dùng cấu hình.
+    """
+    text = (description or "").strip()
+    if not text:
+        return ""
+
+    blocks = [b.strip() for b in re.split(r'\n{2,}', text) if b.strip()]
+    while blocks and blocks[0].lstrip().startswith('# ') and not blocks[0].lstrip().startswith('## '):
+        blocks = blocks[1:]
+
+    imgs = [u.strip() for u in (image_urls or []) if u and str(u).strip().startswith('http')]
+    embed_html = art_embed_html(embed_source) if embed_source else ""
+
+    def _img(u):
+        return f'<p style="text-align:center"><img src="{u}" alt="" style="max-width:100%;height:auto;border-radius:8px" /></p>'
+
+    def _blk(b):
+        b = b.strip()
+        if not b:
+            return ""
+        if b.startswith("### "):
+            return f"<h3>{b[4:].strip()}</h3>"
+        elif b.startswith("## "):
+            return f"<h2>{b[3:].strip()}</h2>"
+        elif b.startswith("# "):
+            return f"<h1>{b[2:].strip()}</h1>"
+        elif b.startswith(("- ", "* ")):
+            lines = [ln.strip() for ln in b.splitlines() if ln.strip()]
+            items = "".join([f"<li>{re.sub(r'^[-*]\s*', '', ln)}</li>" for ln in lines])
+            return f"<ul>{items}</ul>"
+        elif re.match(r'^\d+[.)]\s+', b):
+            lines = [ln.strip() for ln in b.splitlines() if ln.strip()]
+            items = "".join([f"<li>{re.sub(r'^\d+[.)]\s*', '', ln)}</li>" for ln in lines])
+            return f"<ol>{items}</ol>"
+        elif b.startswith("<p>") or b.startswith("<div>") or b.startswith("<h"):
+            return b
+        else:
+            return f"<p>{b}</p>"
+
+    def _place_embed(_out):
+        if not embed_html:
+            return "\n".join(_out)
+
+        pos_val = str(embed_pos or "after_first").strip().lower()
+        if "đầu" in pos_val or "dau" in pos_val or "top" in pos_val:
+            pos = "top"
+        elif "cuối" in pos_val or "cuoi" in pos_val or "bottom" in pos_val or "end" in pos_val:
+            pos = "bottom"
+        elif "cả" in pos_val or "both" in pos_val:
+            pos = "both"
+        else:
+            pos = "after_first"
+
+        if pos in ("top", "both"):
+            _out = [embed_html] + _out
+
+        if pos == "after_first":
+            _i = 0
+            for _k, _h in enumerate(_out):
+                if _h.startswith("<p>"):
+                    _i = _k + 1
+                    break
+            _out = _out[:_i] + [embed_html] + _out[_i:]
+
+        if pos in ("bottom", "both"):
+            _i = len(_out)
+            for _k in range(len(_out) - 1, -1, -1):
+                if _out[_k].startswith("<p>"):
+                    _i = _k + 1
+                    break
+            _out = _out[:_i] + [embed_html] + _out[_i:]
+
+        return "\n".join(_out)
+
+    if not blocks:
+        if imgs:
+            return _place_embed([_img(imgs[0])])
+        return _place_embed([])
+
+    # Phân bổ đều các hình ảnh vào các đoạn văn bản
+    limit = min(len(imgs), len(blocks))
+    chosen = set()
+    if limit > 0:
+        for k in range(limit):
+            chosen.add(k * len(blocks) // limit)
+
+    out = []
+    ii = 0
+    for i, b in enumerate(blocks):
+        out.append(_blk(b))
+        if i in chosen and ii < len(imgs):
+            out.append(_img(imgs[ii]))
+            ii += 1
+
+    # Nếu còn ảnh thừa mà bài dài, có thể thêm tối đa 6 ảnh
+    while ii < len(imgs) and ii < 6:
+        out.append(_img(imgs[ii]))
+        ii += 1
+
+    return _place_embed(out)
+
+
 class ArticleItem:
     def __init__(self, item_id: int, content: str, force_post: bool = False, source_file: str = ""):
         self.id = item_id
@@ -390,6 +541,7 @@ class ArticleWorker:
                 continue
 
             text_to_rewrite = item.content
+            orig_cover_image = ""
             orig_images = []
             orig_iframes = []
 
@@ -410,9 +562,12 @@ class ArticleWorker:
 
                 item.orig_title = parsed_data.get("title", "")
                 text_to_rewrite = parsed_data.get("text_content", "")
+                orig_cover_image = parsed_data.get("cover_image", "")
                 orig_images = parsed_data.get("content_images", [])
                 orig_iframes = parsed_data.get("iframes", [])
-                self.log(f"📄 [T{thread_id}] [Bài #{item.id:03d}] Bóc tách thành công: '{item.orig_title[:50]}...' ({len(text_to_rewrite)} ký tự)", "INFO")
+                if not orig_cover_image and orig_images:
+                    orig_cover_image = orig_images[0]
+                self.log(f"📄 [T{thread_id}] [Bài #{item.id:03d}] Bóc tách thành công: '{item.orig_title[:50]}...' ({len(text_to_rewrite)} ký tự, {len(orig_images)} ảnh)", "INFO")
 
             # Bước 1: AI Rewrite
             item.status = "Rewriting"
@@ -443,7 +598,19 @@ class ArticleWorker:
                 continue
 
             item.title = title
-            item.body = body
+
+            # Ghép hình ảnh và mã Embed vào bài viết mới dạng HTML hoàn chỉnh
+            embed_to_use = art_cfg.get("embed_code", "").strip()
+            if not embed_to_use and art_cfg.get("keep_old_embed", True) and orig_iframes:
+                embed_to_use = orig_iframes[0]
+
+            final_body = art_build_html(
+                description=body,
+                image_urls=orig_images,
+                embed_source=embed_to_use,
+                embed_pos=art_cfg.get("embed_pos", "Sau đoạn đầu")
+            )
+            item.body = final_body
 
             # Nếu chỉ chọn chế độ Rewrite
             if mode == "rewrite_only":
@@ -460,14 +627,17 @@ class ArticleWorker:
             item.status = "Posting"
             self.on_item_updated(item)
             self.log(f"[T{thread_id}] [Bài #{item.id:03d}] Đang đăng bài lên CMS...", "INFO")
+            if orig_images or orig_cover_image:
+                self.log(f"🖼️ [T{thread_id}] [Bài #{item.id:03d}] Đã ghép {len(orig_images)} ảnh vào bài, Thumbnail: {orig_cover_image[:65]}...", "INFO")
 
             post_ok, art_link, post_err = publisher.post_article(
                 title=title,
-                body=body,
+                body=final_body,
+                image_path=orig_cover_image,
                 art_display=art_cfg.get("art_display", True),
                 art_home=art_cfg.get("art_home", True),
                 art_top=art_cfg.get("art_top", True),
-                embed_code=art_cfg.get("embed_code", ""),
+                embed_code="", # Đã được xử lý nhúng trong final_body qua art_build_html
                 embed_pos=art_cfg.get("embed_pos", "Sau đoạn đầu")
             )
 
