@@ -36,10 +36,10 @@ class ArticleRewriterView(ttk.Frame):
         # AI Provider vars (Gemini & OpenAI / 9Router)
         self.v_ai_provider = tk.StringVar(value="Google Gemini")
         self.v_gemini_key = tk.StringVar()
-        self.v_gemini_model = tk.StringVar(value="gemini-3.5-flash-lite")
-        self.v_openai_base_url = tk.StringVar(value="https://api.9router.com/v1")
+        self.v_gemini_model = tk.StringVar(value="gemini-2.5-flash")
+        self.v_openai_base_url = tk.StringVar(value="http://127.0.0.1:20128/v1")
         self.v_openai_key = tk.StringVar()
-        self.v_openai_model = tk.StringVar(value="gpt-4o-mini")
+        self.v_openai_model = tk.StringVar(value="bao")
         self.v_ai_lang = tk.StringVar(value="English")
         self.v_custom_prompt = tk.StringVar()
 
@@ -381,29 +381,66 @@ class ArticleRewriterView(ttk.Frame):
         self.frame_openai.grid_columnconfigure(1, weight=1)
 
         tk.Label(self.frame_openai, text="Base URL:", font=("Segoe UI", 9), bg=THEME["sidebar"], fg=THEME["fg_text"]).grid(row=0, column=0, sticky="w", pady=3)
-        tk.Entry(self.frame_openai, textvariable=self.v_openai_base_url, font=("Segoe UI", 9), bg=THEME["input"], fg=THEME["fg_text"], relief="flat").grid(row=0, column=1, sticky="ew", padx=(5, 0), pady=3)
+        url_sub = tk.Frame(self.frame_openai, bg=THEME["sidebar"])
+        url_sub.grid(row=0, column=1, sticky="ew", padx=(5, 0), pady=3)
+        url_sub.grid_columnconfigure(0, weight=1)
+
+        tk.Entry(url_sub, textvariable=self.v_openai_base_url, font=("Segoe UI", 9), bg=THEME["input"], fg=THEME["fg_text"], relief="flat").grid(row=0, column=0, sticky="ew")
+        btn_local = tk.Button(
+            url_sub,
+            text="Local",
+            font=("Segoe UI", 8, "bold"),
+            bg=THEME["card"],
+            fg=THEME["accent"],
+            activebackground=THEME["border"],
+            relief="flat",
+            cursor="hand2",
+            padx=4,
+            pady=1,
+            command=lambda: self.v_openai_base_url.set("http://127.0.0.1:20128/v1")
+        )
+        btn_local.grid(row=0, column=1, padx=(4, 0))
 
         tk.Label(self.frame_openai, text="9Router Key:", font=("Segoe UI", 9), bg=THEME["sidebar"], fg=THEME["fg_text"]).grid(row=1, column=0, sticky="w", pady=3)
         self.ent_openai_key = tk.Entry(self.frame_openai, textvariable=self.v_openai_key, show="*", font=("Segoe UI", 9), bg=THEME["input"], fg=THEME["fg_text"], relief="flat")
         self.ent_openai_key.grid(row=1, column=1, sticky="ew", padx=(5, 0), pady=3)
 
         tk.Label(self.frame_openai, text="Model:", font=("Segoe UI", 9), bg=THEME["sidebar"], fg=THEME["fg_text"]).grid(row=2, column=0, sticky="w", pady=3)
-        cb_openai_model = ttk.Combobox(
-            self.frame_openai,
+        model_sub_openai = tk.Frame(self.frame_openai, bg=THEME["sidebar"])
+        model_sub_openai.grid(row=2, column=1, sticky="ew", padx=(5, 0), pady=3)
+        model_sub_openai.grid_columnconfigure(0, weight=1)
+
+        self.cb_openai_model = ttk.Combobox(
+            model_sub_openai,
             textvariable=self.v_openai_model,
             values=[
-                "gemini/gemini-3.5-flash-lite",
-                "gemini/gemini-3.6-flash",
+                "bao",
                 "gemini/gemini-3.7-flash",
+                "ag/gemini-3.8-flash-high",
                 "ag/claude-sonnet-4-6",
+                "gemini/gemini-3.5-flash-lite",
                 "gpt-4o-mini",
                 "gpt-4o",
-                "deepseek-chat",
-                "deepseek-v3"
+                "deepseek-chat"
             ],
             font=("Segoe UI", 9)
         )
-        cb_openai_model.grid(row=2, column=1, sticky="ew", padx=(5, 0), pady=3)
+        self.cb_openai_model.grid(row=0, column=0, sticky="ew")
+
+        self.btn_refresh_openai_models = tk.Button(
+            model_sub_openai,
+            text="🔄 Lấy Model",
+            font=("Segoe UI", 8, "bold"),
+            bg=THEME["card"],
+            fg=THEME["accent"],
+            activebackground=THEME["border"],
+            relief="flat",
+            cursor="hand2",
+            padx=4,
+            pady=1,
+            command=self._on_refresh_openai_models
+        )
+        self.btn_refresh_openai_models.grid(row=0, column=1, padx=(4, 0))
 
         # Ngôn ngữ dịch bài chung
         lang_frame = tk.Frame(sec_ai, bg=THEME["sidebar"])
@@ -513,13 +550,15 @@ class ArticleRewriterView(ttk.Frame):
 
         gemini_legacy = self.cfg_mgr.get("gemini", {})
         self.v_gemini_key.set(ai.get("gemini_api_key") or gemini_legacy.get("api_key", ""))
-        loaded_model = ai.get("gemini_model") or gemini_legacy.get("model", "gemini-3.5-flash-lite")
-        if loaded_model in ("gemini-1.5-flash", "gemini-2.0-flash", "gemini-2.5-flash", "gemini-3.7-flash", ""):
-            loaded_model = "gemini-3.5-flash-lite"
+        loaded_model = ai.get("gemini_model") or gemini_legacy.get("model", "gemini-2.5-flash")
         self.v_gemini_model.set(loaded_model)
-        self.v_openai_base_url.set(ai.get("openai_base_url", "https://api.9router.com/v1"))
+
+        base_url = (ai.get("openai_base_url") or "").strip()
+        if not base_url or base_url == "https://api.9router.com/v1":
+            base_url = "http://127.0.0.1:20128/v1"
+        self.v_openai_base_url.set(base_url)
         self.v_openai_key.set(ai.get("openai_api_key", ""))
-        self.v_openai_model.set(ai.get("openai_model", "gpt-4o-mini"))
+        self.v_openai_model.set(ai.get("openai_model") or "bao")
         self.v_ai_lang.set(ai.get("language") or gemini_legacy.get("language", "English"))
         self.v_custom_prompt.set(ai.get("custom_prompt") or gemini_legacy.get("custom_prompt", ""))
 
@@ -860,6 +899,39 @@ class ArticleRewriterView(ttk.Frame):
 
         threading.Thread(target=_fetch_thread, daemon=True).start()
 
+    def _on_refresh_openai_models(self):
+        """Dynamic Model Discovery: Lấy danh sách model từ 9Router / OpenAI tương thích"""
+        base_url = self.v_openai_base_url.get().strip() or "http://127.0.0.1:20128/v1"
+        key = self.v_openai_key.get().strip()
+
+        self.btn_refresh_openai_models.configure(state=tk.DISABLED, text="⏳...")
+        self.logger.info(f"Đang kết nối 9Router ({base_url}) để lấy danh sách Model...")
+
+        def _fetch_thread():
+            try:
+                ok, models, msg = GeminiEngine.fetch_available_openai_models(api_key=key, base_url=base_url)
+            except Exception as e:
+                ok, models, msg = False, [], f"Lỗi không xác định: {e}"
+
+            def _done():
+                self.btn_refresh_openai_models.configure(state=tk.NORMAL, text="🔄 Lấy Model")
+                if ok and models:
+                    self.cb_openai_model["values"] = models
+                    if self.v_openai_model.get() not in models:
+                        self.v_openai_model.set(models[0])
+                    self.logger.success(f"✓ Đã nạp thành công {len(models)} model từ 9Router/OpenAI!")
+                    messagebox.showinfo(
+                        "Thành Công",
+                        f"✓ Đã lấy được {len(models)} model khả dụng từ 9Router:\n\n" + "\n".join(models[:10]) + ("\n..." if len(models) > 10 else "")
+                    )
+                else:
+                    self.logger.error(f"❌ Không thể lấy danh sách model 9Router: {msg}")
+                    messagebox.showerror("Thất Bại", f"Lỗi lấy model từ 9Router ({base_url}):\n{msg}")
+
+            self.root.after(0, _done)
+
+        threading.Thread(target=_fetch_thread, daemon=True).start()
+
     def _on_test_ai(self):
         """Kiểm tra nhanh API Key và Model trước khi chạy thực tế"""
         cfg = self._collect_config_from_ui()
@@ -868,8 +940,8 @@ class ArticleRewriterView(ttk.Frame):
 
         if prov in ("openai", "openai_9router", "9router"):
             key = ai_cfg.get("openai_api_key", "").strip()
-            model = ai_cfg.get("openai_model", "gpt-4o-mini").strip()
-            base_url = ai_cfg.get("openai_base_url", "https://api.9router.com/v1").strip()
+            model = ai_cfg.get("openai_model", "bao").strip()
+            base_url = ai_cfg.get("openai_base_url", "http://127.0.0.1:20128/v1").strip()
             label = "9Router/OpenAI"
         else:
             key = ai_cfg.get("gemini_api_key", "").strip()
@@ -922,8 +994,8 @@ class ArticleRewriterView(ttk.Frame):
 
         if prov in ("openai", "openai_9router", "9router"):
             key = ai_cfg.get("openai_api_key", "").strip()
-            model = ai_cfg.get("openai_model", "gpt-4o-mini").strip()
-            base_url = ai_cfg.get("openai_base_url", "https://api.9router.com/v1").strip()
+            model = ai_cfg.get("openai_model", "bao").strip()
+            base_url = ai_cfg.get("openai_base_url", "http://127.0.0.1:20128/v1").strip()
             label = "9Router/OpenAI"
             if not key:
                 messagebox.showwarning("Cảnh Báo", "Chưa nhập 9Router API Key trong bảng Cài đặt bên phải!")

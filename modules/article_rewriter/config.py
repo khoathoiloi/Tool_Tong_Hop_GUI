@@ -12,10 +12,10 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "ai": {
         "provider": "gemini",  # "gemini" hoặc "openai_9router"
         "gemini_api_key": "",
-        "gemini_model": "gemini-3.5-flash-lite",
-        "openai_base_url": "https://api.9router.com/v1",
+        "gemini_model": "gemini-2.5-flash",
+        "openai_base_url": "http://127.0.0.1:20128/v1",
         "openai_api_key": "",
-        "openai_model": "gpt-4o-mini",
+        "openai_model": "bao",
         "language": "English",
         "custom_prompt": ""
     },

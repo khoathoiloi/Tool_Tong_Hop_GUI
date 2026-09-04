@@ -56,13 +56,13 @@ class AIEngine:
         provider: str = "gemini",
         api_key: str = "",
         model: str = "gemini-3.7-flash",
-        base_url: str = "https://api.9router.com/v1",
+        base_url: str = "http://127.0.0.1:20128/v1",
         log_cb: Callable = None
     ):
         self.provider = (provider or "gemini").lower().strip()
         self.api_key = (api_key or "").strip()
-        self.model = (model or "gemini-3.7-flash").strip()
-        self.base_url = (base_url or "https://api.9router.com/v1").rstrip("/")
+        self.model = (model or "gemini-2.5-flash").strip()
+        self.base_url = (base_url or "http://127.0.0.1:20128/v1").rstrip("/")
         self.log = log_cb or (lambda m, lv="INFO": None)
 
     def rewrite_article(
@@ -207,6 +207,67 @@ class AIEngine:
                 return False, [], f"Lỗi xác thực/phân quyền API Key (HTTP {r.status_code})."
             else:
                 return False, [], f"Lỗi HTTP {r.status_code}: {r.text[:100]}"
+        except Exception as e:
+            return False, [], f"Lỗi kết nối ({type(e).__name__}): {str(e)}"
+
+    @staticmethod
+    def fetch_available_openai_models(api_key: str = "", base_url: str = "http://127.0.0.1:20128/v1") -> Tuple[bool, List[str], str]:
+        """
+        Dynamic Model Discovery: Lấy danh sách model từ 9Router / OpenAI tương thích qua GET /models.
+        Hỗ trợ cả trường hợp chạy 9Router Local không cần key hoặc có Bearer token.
+        """
+        base_clean = (base_url or "http://127.0.0.1:20128/v1").rstrip("/")
+        endpoint = f"{base_clean}/models"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MasterToolHub/2.7"
+        }
+        if api_key and api_key.strip():
+            headers["Authorization"] = f"Bearer {api_key.strip()}"
+
+        try:
+            r = requests.get(endpoint, headers=headers, timeout=15)
+            if 200 <= r.status_code < 300:
+                data = r.json()
+                raw_models = []
+                if isinstance(data, dict):
+                    raw_models = data.get("data", [])
+                    if not raw_models and "models" in data:
+                        raw_models = data["models"]
+                elif isinstance(data, list):
+                    raw_models = data
+
+                model_ids = []
+                for item in raw_models:
+                    if isinstance(item, dict) and "id" in item:
+                        model_ids.append(str(item["id"]).strip())
+                    elif isinstance(item, str):
+                        model_ids.append(item.strip())
+
+                # Sort priority: đưa combo 'bao', 'gemini', 'claude', 'gpt' lên trước
+                def _sort_openai(name: str):
+                    nl = name.lower()
+                    if nl == "bao":
+                        return (0, name)
+                    if "gemini" in nl:
+                        return (1, name)
+                    if "claude" in nl:
+                        return (2, name)
+                    if "gpt" in nl:
+                        return (3, name)
+                    return (4, name)
+
+                model_ids = sorted(list(dict.fromkeys(model_ids)), key=_sort_openai)
+
+                if not model_ids:
+                    return False, [], "9Router không trả về danh sách model nào."
+
+                return True, model_ids, f"Đã tìm thấy {len(model_ids)} model khả dụng từ 9Router/OpenAI."
+            elif r.status_code == 401:
+                return False, [], "Lỗi xác thực (HTTP 401): API Key không hợp lệ."
+            elif r.status_code == 404:
+                return False, [], f"Lỗi HTTP 404: Không tìm thấy endpoint /models tại {base_clean}. Hãy kiểm tra Base URL."
+            else:
+                return False, [], f"Lỗi HTTP {r.status_code}: {r.text[:120]}"
         except Exception as e:
             return False, [], f"Lỗi kết nối ({type(e).__name__}): {str(e)}"
 

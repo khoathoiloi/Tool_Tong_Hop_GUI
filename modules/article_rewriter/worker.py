@@ -339,8 +339,8 @@ class ArticleWorker:
         provider = ai_cfg.get("provider", "gemini")
         if provider in ("openai", "openai_9router", "9router"):
             api_key = ai_cfg.get("openai_api_key", "")
-            model = ai_cfg.get("openai_model", "gpt-4o-mini")
-            base_url = ai_cfg.get("openai_base_url", "https://api.9router.com/v1")
+            model = ai_cfg.get("openai_model", "bao")
+            base_url = ai_cfg.get("openai_base_url", "http://127.0.0.1:20128/v1")
         else:
             gemini_legacy = self.config.get("gemini", {})
             api_key = ai_cfg.get("gemini_api_key") or gemini_legacy.get("api_key", "")
