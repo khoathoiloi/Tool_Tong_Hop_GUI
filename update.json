@@ -1,19 +1,21 @@
 {
-  "latest_version": "2.7.2",
-  "version": "2.7.2",
+  "latest_version": "2.7.3",
+  "version": "2.7.3",
   "minimum_supported_version": "1.0.0",
   "release_date": "2026-09-04",
-  "release_notes": "Bản cập nhật v2.7.2: Tối ưu chuẩn hóa File Excel V5 (13 cột) - Bình luận 1 chứa cả text dẫn và link URL, Bình luận 2 để trống hoàn toàn.",
-  "package_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.2/MasterToolHub_v2.7.2.zip",
-  "download_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.2/MasterToolHub_v2.7.2.zip",
-  "package_sha256": "0cf6d8feb678c26d3fd8d582feb82b28d54d93e1eb55dbfe8932ce5045f4a9c5",
-  "sha256": "0cf6d8feb678c26d3fd8d582feb82b28d54d93e1eb55dbfe8932ce5045f4a9c5",
-  "updater_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.2/Updater.exe",
-  "updater_sha256": "870566170e6a2fe25fa05a5ddb7f80f0d75a920b43989f6ec5dfec3556c91db3",
+  "release_notes": "Bản cập nhật v2.7.3: Nâng cấp toàn diện Module Xào Bài Báo - Quét folder lớn, tự động xào & đăng CMS, kiểm tra xác minh web, tự động làm lại bài thiếu không thừa không thiếu, và dán tiêu đề/link mới vào file txt ban đầu.",
+  "package_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.3/MasterToolHub_v2.7.3.zip",
+  "download_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.3/MasterToolHub_v2.7.3.zip",
+  "package_sha256": "aa9626270b2266cc9ed95366a994f13352c260530984cfd401ef72944f95e9ea",
+  "sha256": "aa9626270b2266cc9ed95366a994f13352c260530984cfd401ef72944f95e9ea",
+  "updater_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.3/Updater.exe",
+  "updater_sha256": "6e59ccccca214a7c8f9301e878d90924c96f4ac2360543c98f45712a5a99b788",
   "changelog": [
-    "Excel Fanpage V5 (13 cột): Cột 'Bình luận 1' ghép cả text dẫn và link URL, cột 'Bình luận 2' để trống",
-    "Hỗ trợ cả link rút gọn ShiftLink và link gốc trích xuất trực tiếp từ file txt",
-    "Nâng cấp độ ổn định bộ tạo file Excel và hệ thống Auto-Updater"
+    "Xào Bài Báo: Quét đệ quy folder lớn, trích xuất chuẩn 100% link bài báo từ các file txt con",
+    "Tự động xào bài qua AI và đăng bài lên CMS, bóc tách đầy đủ ảnh và video embed",
+    "Kiểm tra xác minh bài mới trực tiếp trên Web (HTTP 200, phát hiện chuyển hướng trang chủ)",
+    "Tự động kiểm duyệt số lượng và làm lại các bài thiếu, đảm bảo chuẩn 100% không thiếu không thừa",
+    "Tự động dán Tiêu đề mới & Link báo mới vào đúng file .txt ban đầu kèm nhãn phân biệt rõ ràng"
   ],
   "mandatory": false,
   "min_updater_version": "1.0.0"
