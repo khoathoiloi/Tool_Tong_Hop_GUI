@@ -276,9 +276,15 @@ class AIEngine:
                     self.log(f"❌ [Gemini] Lỗi xác thực/phân quyền (HTTP {_code}): {err_text}", "ERROR")
                     return False, "", "", f"Lỗi HTTP {_code}: API Key hoặc phân quyền không hợp lệ."
                 elif _code == 429 or _gemini_is_daily_limit(err_text):
-                    backoff = attempt * 3
-                    self.log(f"⚠️ Gemini Rate Limit (429)! Đang chờ {backoff}s...", "WARNING")
-                    time.sleep(backoff)
+                    m_wait = re.search(r'retry in (\d+(?:\.\d+)?)s', err_text, re.I)
+                    if m_wait:
+                        wait_sec = min(int(float(m_wait.group(1))) + 1, 60)
+                        self.log(f"⚠️ Gemini Rate Limit (429)! Đang chờ {wait_sec}s theo yêu cầu của Google...", "WARNING")
+                        time.sleep(wait_sec)
+                    else:
+                        backoff = attempt * 5
+                        self.log(f"⚠️ Gemini Rate Limit (429)! Đang chờ {backoff}s...", "WARNING")
+                        time.sleep(backoff)
                 elif _code >= 500:
                     self.log(f"⚠️ Máy chủ Google lỗi (HTTP {_code}), đang thử lại...", "WARNING")
                     time.sleep(attempt * 2)
