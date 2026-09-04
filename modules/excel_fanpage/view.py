@@ -129,7 +129,7 @@ class ExcelFanpageView(ttk.Frame):
         # Text Bình luận 1
         r_bl1 = tk.Frame(grp_cfg, bg="#24273a")
         r_bl1.pack(fill=tk.X, pady=2)
-        tk.Label(r_bl1, text="Nội dung Bình luận 1 (V5):", width=26, anchor="w", font=("Segoe UI", 9, "bold"), bg="#24273a", fg="#89b4fa").pack(side=tk.LEFT)
+        tk.Label(r_bl1, text="Nội dung dẫn (Bình luận 1):", width=26, anchor="w", font=("Segoe UI", 9, "bold"), bg="#24273a", fg="#89b4fa").pack(side=tk.LEFT)
         self.entry_comment1 = tk.Entry(r_bl1, font=("Segoe UI", 9), bg="#313244", fg="#a6e3a1", insertbackground="#cdd6f4", relief="flat")
         self.entry_comment1.insert(0, DEFAULT_COMMENT_1)
         self.entry_comment1.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=3)
@@ -429,11 +429,11 @@ class ExcelFanpageView(ttk.Frame):
                                 return
                             self.logger.warning("Tiếp tục xuất file Excel với LINK GỐC theo yêu cầu...")
                         else:
-                            self.logger.success(f"✅ Đã rút gọn thành công & gán {shortened_applied}/{len(raw_urls_to_shorten)} link ShiftLink vào 'Bình luận 2 (Trả lời)'!")
+                            self.logger.success(f"✅ Đã rút gọn thành công & ghép {shortened_applied}/{len(raw_urls_to_shorten)} link ShiftLink vào 'Bình luận 1'!")
                     else:
                         self.logger.warning("Các folder video không có dòng link gốc trong link-da-dang.txt để rút gọn.")
                 else:
-                    self.logger.info("ℹ️ Chế độ rút gọn link đang TẮT -> Lấy link gốc trong file txt vào file Excel.")
+                    self.logger.info("ℹ️ Chế độ rút gọn link đang TẮT -> Ghép thẳng link gốc trong file txt vào 'Bình luận 1'.")
 
                 # Xuất file Excel với đúng định dạng (13 cột chuẩn V5 hoặc 11 cột)
                 def _prog(cur, total, msg):
@@ -471,6 +471,8 @@ class ExcelFanpageView(ttk.Frame):
                         summary_msg += f"\n\n⚠️ Rút gọn ShiftLink: DÙNG LINK GỐC TRONG TXT."
                 else:
                     summary_msg += f"\n\nℹ️ Link bài viết: Lấy link gốc từ file txt (Không rút gọn)."
+
+                summary_msg += f"\n\n💬 Bình luận: Đã ghép nội dung + link vào 'Bình luận 1', để trống 'Bình luận 2'."
 
                 messagebox.showinfo("Thành công", summary_msg)
             except Exception as e:

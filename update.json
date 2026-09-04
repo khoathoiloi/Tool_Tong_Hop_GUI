@@ -1,20 +1,19 @@
 {
-  "latest_version": "2.7.1",
-  "version": "2.7.1",
+  "latest_version": "2.7.2",
+  "version": "2.7.2",
   "minimum_supported_version": "1.0.0",
-  "release_date": "2026-09-03",
-  "release_notes": "Bản cập nhật v2.7.1: Tối ưu bộ tạo Excel Fanpage (giữ bình luận watch full here hoặc lấy link gốc txt), nâng cấp Smart Updater độc lập tự kết nối GitHub, Smart Browser Launcher ShiftLink.",
-  "package_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.1/MasterToolHub_v2.7.1.zip",
-  "download_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.1/MasterToolHub_v2.7.1.zip",
-  "package_sha256": "87cb06611d6035386def792322e8f5e81d83d429274a4ba0f5eb50bf1dd07ed1",
-  "sha256": "87cb06611d6035386def792322e8f5e81d83d429274a4ba0f5eb50bf1dd07ed1",
-  "updater_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.1/Updater.exe",
+  "release_date": "2026-09-04",
+  "release_notes": "Bản cập nhật v2.7.2: Tối ưu chuẩn hóa File Excel V5 (13 cột) - Bình luận 1 chứa cả text dẫn và link URL, Bình luận 2 để trống hoàn toàn.",
+  "package_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.2/MasterToolHub_v2.7.2.zip",
+  "download_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.2/MasterToolHub_v2.7.2.zip",
+  "package_sha256": "0cf6d8feb678c26d3fd8d582feb82b28d54d93e1eb55dbfe8932ce5045f4a9c5",
+  "sha256": "0cf6d8feb678c26d3fd8d582feb82b28d54d93e1eb55dbfe8932ce5045f4a9c5",
+  "updater_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.2/Updater.exe",
   "updater_sha256": "870566170e6a2fe25fa05a5ddb7f80f0d75a920b43989f6ec5dfec3556c91db3",
   "changelog": [
-    "Fix Updater.exe: Chạy độc lập thông minh không cần tham số, tự truy vấn bản mới từ GitHub",
-    "Tự động hóa ShiftLink: Hỗ trợ đa trình duyệt Chrome/Edge/Brave với hồ sơ độc lập, không bị khóa file",
-    "Excel Fanpage: Giữ nguyên bình luận (watch full here) nếu có nhập, đi kèm link gốc txt hoặc link rút gọn",
-    "CMS Publisher: Chuẩn hóa engine đăng bài CMS Golden Reference, khắc phục triệt để lỗi HTTP 405"
+    "Excel Fanpage V5 (13 cột): Cột 'Bình luận 1' ghép cả text dẫn và link URL, cột 'Bình luận 2' để trống",
+    "Hỗ trợ cả link rút gọn ShiftLink và link gốc trích xuất trực tiếp từ file txt",
+    "Nâng cấp độ ổn định bộ tạo file Excel và hệ thống Auto-Updater"
   ],
   "mandatory": false,
   "min_updater_version": "1.0.0"

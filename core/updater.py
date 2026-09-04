@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 import shutil
 
-APP_VERSION = "2.7.1"
+APP_VERSION = "2.7.2"
 GITHUB_REPO = "khoathoiloi/Tool_Tong_Hop_GUI"
 MANIFEST_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/update.json"
 API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"

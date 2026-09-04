@@ -33,23 +33,22 @@ def export_excel_file(valid_items, pages, pages_per_video, kho_path_str, output_
                 raw_or_short_url = fc
 
         # Xử lý gán bình luận:
+        # - Bình luận 1: Ghép cả nội dung text người dùng nhập và link URL bài viết
+        # - Bình luận 2 (Trả lời): Luôn bỏ trống hoàn toàn (None)
         c1_clean = (comment1_text or "").strip()
         link_target = raw_or_short_url.strip() if raw_or_short_url else ""
 
-        if c1_clean:
-            # Người dùng CÓ để nội dung bình luận (ví dụ: "watch full here 👉:"):
-            # - Token V5: Bình luận 1 là nội dung đó, Bình luận 2 (Trả lời) là link (link rút gọn hoặc link gốc từ txt)
-            # - File Thường: Bình luận đầu tiên là "nội dung + link"
+        if c1_clean and link_target:
+            final_c1 = f"{c1_clean} {link_target}".strip()
+        elif link_target:
+            final_c1 = link_target
+        elif c1_clean:
             final_c1 = c1_clean
-            final_c2 = link_target if link_target else None
-            final_fc = f"{c1_clean} {link_target}".strip() if link_target else c1_clean
         else:
-            # Người dùng ĐỂ TRỐNG ô bình luận (xóa trắng):
-            # - Token V5: Bình luận 1 lấy thẳng link trong txt, Bình luận 2 để trống None
-            # - File Thường: Bình luận đầu tiên lấy thẳng link trong txt
-            final_c1 = link_target if link_target else None
-            final_c2 = None
-            final_fc = link_target if link_target else None
+            final_c1 = None
+
+        final_c2 = None
+        final_fc = final_c1
 
         for p in group_pages:
             if excel_type == "token":
