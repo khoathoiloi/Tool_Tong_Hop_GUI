@@ -16,12 +16,25 @@ from urllib.parse import urlparse
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
-def art_slugify(text: str) -> str:
+def art_slugify(text: str, min_len: int = 42, max_len: int = 50) -> str:
+    """Tạo slug chuẩn SEO từ tiêu đề, giới hạn độ dài trong khoảng 42 - 50 ký tự"""
     s = (text or "").lower().strip()
     s = re.sub(r'[\s_]+', '-', s)
     s = re.sub(r'[^a-z0-9\-]', '', s)
     s = re.sub(r'-+', '-', s).strip('-')
-    return s[:180] or "article"
+    if not s:
+        return "article"
+
+    if len(s) > max_len:
+        sub = s[:max_len]
+        # Tìm dấu '-' cuối cùng trong khoảng [min_len, max_len] để ngắt nguyên vẹn từ
+        last_dash = sub.rfind('-')
+        if last_dash >= min_len:
+            s = sub[:last_dash].rstrip('-')
+        else:
+            s = sub.rstrip('-')
+
+    return s or "article"
 
 def art_seo_description(body: str) -> str:
     clean = re.sub(r'<[^>]+>', ' ', body or '')
@@ -171,7 +184,8 @@ class CMSPublisher:
                     resp_text = r.text.lower()
                     if "slug" in resp_text or "already been taken" in resp_text:
                         st_retry += 1
-                        new_slug = f"{base_slug}-{random.randint(1000, 99999)}"
+                        trim_base = base_slug[:44].rstrip('-')
+                        new_slug = f"{trim_base}-{random.randint(100, 9999)}"
                         fields["slug"] = new_slug
                         self.log(f"⚠️ Slug bị trùng, tự động đổi sang: {new_slug}...", "WARNING")
                         r = requests.post(url, headers=headers, data=fields, timeout=120)
