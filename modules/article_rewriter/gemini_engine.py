@@ -11,6 +11,8 @@ import time
 import requests
 from typing import Tuple, List, Dict, Any, Callable
 
+from .text_utils import clean_mojibake_and_typography
+
 DEFAULT_PROMPT_TEMPLATE = """You are an elite viral blog editor and masterful investigative storyteller.
 Your task is to completely rewrite, reframe, and spin the following source article into a BRAND NEW, captivating, high-retention blog article written in {language}.
 
@@ -426,8 +428,15 @@ class AIEngine:
 
     @staticmethod
     def _extract_openai_response(r: requests.Response) -> str:
+        try:
+            r.encoding = "utf-8"
+        except Exception:
+            pass
         ct = r.headers.get("content-type", "")
-        text = r.text
+        try:
+            text = r.content.decode("utf-8", errors="replace")
+        except Exception:
+            text = r.text
         if "event-stream" in ct or text.startswith("data:"):
             chunks = []
             for line in text.splitlines():
@@ -496,6 +505,8 @@ class AIEngine:
                     out_lines.append(f"<p>{raw}</p>")
             new_body = "\n".join(out_lines)
 
+        new_title = clean_mojibake_and_typography(new_title)
+        new_body = clean_mojibake_and_typography(new_body)
         return new_title, new_body
 
 # Alias tương thích

@@ -14,10 +14,13 @@ import requests
 from typing import Tuple, Dict, Any, Callable
 from urllib.parse import urlparse
 
+from .text_utils import clean_mojibake_and_typography
+
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
 def art_slugify(text: str, min_len: int = 42, max_len: int = 50) -> str:
     """Tạo slug chuẩn SEO từ tiêu đề, giới hạn độ dài trong khoảng 42 - 50 ký tự"""
+    text = clean_mojibake_and_typography(text)
     s = (text or "").lower().strip()
     s = re.sub(r'[\s_]+', '-', s)
     s = re.sub(r'[^a-z0-9\-]', '', s)
@@ -106,6 +109,8 @@ class CMSPublisher:
         if not base:
             return False, "", "Chưa cấu hình Base URL website!"
 
+        title = clean_mojibake_and_typography(title)
+        body = clean_mojibake_and_typography(body)
         final_body = self.inject_embed(body, embed_code, embed_pos)
         base_slug = slug or art_slugify(title)
         seo_desc = art_seo_description(final_body)

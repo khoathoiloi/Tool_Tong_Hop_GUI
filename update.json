@@ -1,21 +1,21 @@
 {
-  "latest_version": "2.7.4",
-  "version": "2.7.4",
+  "latest_version": "2.7.5",
+  "version": "2.7.5",
   "minimum_supported_version": "1.0.0",
   "release_date": "2026-09-04",
-  "release_notes": "Bản cập nhật v2.7.4: Bổ sung tự động chèn ảnh vào bài viết, gán thumbnail bài viết lên CMS, tối ưu độ dài slug từ 42-50 ký tự chuẩn SEO, và thêm tính năng Lấy Model tự động cho 9Router.",
-  "package_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.4/MasterToolHub_v2.7.4.zip",
-  "download_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.4/MasterToolHub_v2.7.4.zip",
-  "package_sha256": "f6264bde5ffe013387e03f119c7e1b2b243dae50305ea0296bcccb7dc736c48a",
-  "sha256": "f6264bde5ffe013387e03f119c7e1b2b243dae50305ea0296bcccb7dc736c48a",
+  "release_notes": "Bản cập nhật v2.7.5: Khắc phục triệt để lỗi font tiêu đề (mojibake Valentineâs -> Valentine's) và tối ưu chèn ảnh ngẫu nhiên ở giữa thân bài viết để tăng tương tác người đọc.",
+  "package_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.5/MasterToolHub_v2.7.5.zip",
+  "download_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.5/MasterToolHub_v2.7.5.zip",
+  "package_sha256": "d8e259b02e62d4d596118ffceb20cf240d0f19f63c513b777589c23befc58641",
+  "sha256": "d8e259b02e62d4d596118ffceb20cf240d0f19f63c513b777589c23befc58641",
   "updater_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.3/Updater.exe",
   "updater_sha256": "6e59ccccca214a7c8f9301e878d90924c96f4ac2360543c98f45712a5a99b788",
   "changelog": [
-    "Tự động phân bổ đều các hình ảnh minh họa từ bài báo gốc xen kẽ giữa các đoạn văn",
-    "Tự động gán ảnh bìa Thumbnail cho bài viết khi xuất bản lên CMS",
-    "Tối ưu độ dài slug từ 42 đến 50 ký tự chuẩn SEO, cắt sạch sẽ theo ranh giới từ",
-    "Bổ sung nút 🔄 Lấy Model và nút Local cho 9Router, hỗ trợ cổng 20128",
-    "Nâng cấp độ ổn định kết nối Gemini API và CMS publishing"
+    "Khắc phục triệt để lỗi font tiêu đề và nội dung (mojibake dạng Valentineâs, â€™, ký tự điều khiển)",
+    "Chuẩn hóa dấu nháy đơn, nháy kép về chuẩn ASCII tương thích 100% với CMS và MySQL",
+    "Tối ưu phân bổ hình ảnh: chèn ngẫu nhiên ở giữa thân bài viết để lôi kéo người xem cuộn trang",
+    "Tránh chèn ảnh sát đầu bài trùng lặp Thumbnail hoặc sát cuối bài vướng video embed",
+    "Giải mã trang web bài báo nguồn trực tiếp bằng UTF-8 tránh lỗi fallback Latin-1"
   ],
   "mandatory": false,
   "min_updater_version": "1.0.0"

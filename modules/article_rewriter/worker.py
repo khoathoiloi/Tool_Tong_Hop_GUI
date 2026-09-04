@@ -9,12 +9,14 @@ import os
 import re
 import time
 import queue
+import random
 import urllib.parse
 import threading
 from html import unescape as html_unescape
 from typing import List, Dict, Any, Callable, Tuple
 import requests
 
+from .text_utils import clean_mojibake_and_typography
 from .gemini_engine import GeminiEngine
 from .cms_publisher import CMSPublisher
 from .history_manager import HistoryManager
@@ -48,7 +50,11 @@ def art_fetch_and_parse_url(url: str, timeout: int = 25) -> Tuple[bool, Dict[str
         if r.status_code != 200:
             return False, {}, f"HTTP {r.status_code}: Không thể tải trang gốc"
 
-        html = r.text
+        # Đảm bảo giải mã UTF-8 chuẩn xác, tránh lỗi font / mojibake khi thiếu header charset
+        try:
+            html = r.content.decode("utf-8", errors="replace")
+        except Exception:
+            html = r.text
         if not html or len(html) < 200:
             return False, {}, "Trang bài báo trả về nội dung rỗng"
 
@@ -61,6 +67,7 @@ def art_fetch_and_parse_url(url: str, timeout: int = 25) -> Tuple[bool, Dict[str
 
         title = html_unescape(title_m.group(1).strip()) if title_m else ""
         title = re.sub(r'\s*[-|]\s*[^-\|]+$', '', title).strip()
+        title = clean_mojibake_and_typography(title)
 
         # 2. Trích xuất ảnh đại diện (og:image)
         og_img_m = re.search(r'<meta\s+property=["\']og:image["\']\s+content=["\']([^"\']*)["\']', html, re.I)
@@ -134,6 +141,8 @@ def art_fetch_and_parse_url(url: str, timeout: int = 25) -> Tuple[bool, Dict[str
             fallback_text = re.sub(r'\s+', ' ', fallback_text).strip()
             if len(fallback_text) > len(text_only):
                 text_only = fallback_text
+
+        text_only = clean_mojibake_and_typography(text_only)
 
         if len(text_only) < 60:
             return False, {}, "Không bóc tách được nội dung bài báo (quá ngắn hoặc bị chặn bởi bot protection)"
@@ -225,12 +234,13 @@ def write_result_to_source_file(file_path: str, new_title: str, new_link: str) -
         block_pattern = re.compile(r'\n*-{10,}\s*\[KẾT QUẢ XÀO BÀI MỚI\].*?-{10,}', re.S)
         content_clean = block_pattern.sub('', content).strip()
 
+        clean_title = clean_mojibake_and_typography(new_title)
         now_str = time.strftime("%Y-%m-%d %H:%M:%S")
         new_block = (
             "\n\n"
             "--------------------------------------------------\n"
             "[KẾT QUẢ XÀO BÀI MỚI]\n"
-            f"Tiêu đề mới: {new_title}\n"
+            f"Tiêu đề mới: {clean_title}\n"
             f"Link báo mới: {new_link}\n"
             f"Thời gian xào & đăng: {now_str}\n"
             "--------------------------------------------------"
@@ -371,25 +381,37 @@ def art_build_html(
             return _place_embed([_img(imgs[0])])
         return _place_embed([])
 
-    # Phân bổ đều các hình ảnh vào các đoạn văn bản
-    limit = min(len(imgs), len(blocks))
-    chosen = set()
-    if limit > 0:
-        for k in range(limit):
-            chosen.add(k * len(blocks) // limit)
+    # Phân bổ ảnh vào các vị trí ngẫu nhiên ở khoảng giữa thân bài
+    # Bỏ qua đoạn 1 (tránh dồn ứ với ảnh bìa Thumbnail) và đoạn cuối cùng
+    n_blocks = len(blocks)
+    n_imgs = min(len(imgs), 6)
+
+    chosen_positions = set()
+    if n_blocks >= 4 and n_imgs > 0:
+        # Vùng giữa thân bài: từ sau đoạn 2 (index 1) đến trước đoạn cuối (index n_blocks - 2)
+        eligible = list(range(1, n_blocks - 1))
+        k_place = min(n_imgs, len(eligible))
+        seg_size = len(eligible) / k_place
+        for s_i in range(k_place):
+            start_idx = int(s_i * seg_size)
+            end_idx = int((s_i + 1) * seg_size)
+            sub = eligible[start_idx:end_idx]
+            if sub:
+                chosen_positions.add(random.choice(sub))
+            else:
+                chosen_positions.add(eligible[min(start_idx, len(eligible) - 1)])
+    elif n_blocks in (2, 3) and n_imgs > 0:
+        chosen_positions.add(1 if n_blocks == 3 else 0)
+    elif n_blocks == 1 and n_imgs > 0:
+        chosen_positions.add(0)
 
     out = []
-    ii = 0
+    img_idx = 0
     for i, b in enumerate(blocks):
         out.append(_blk(b))
-        if i in chosen and ii < len(imgs):
-            out.append(_img(imgs[ii]))
-            ii += 1
-
-    # Nếu còn ảnh thừa mà bài dài, có thể thêm tối đa 6 ảnh
-    while ii < len(imgs) and ii < 6:
-        out.append(_img(imgs[ii]))
-        ii += 1
+        if i in chosen_positions and img_idx < len(imgs):
+            out.append(_img(imgs[img_idx]))
+            img_idx += 1
 
     return _place_embed(out)
 
