@@ -219,10 +219,10 @@ def verify_article_on_web(url: str, expected_title: str = "", timeout: int = 15)
     return False, "Không thể xác minh bài viết trên Web"
 
 
-def write_result_to_source_file(file_path: str, new_title: str, new_link: str) -> Tuple[bool, str]:
+def write_result_to_source_file(file_path: str, new_title: str, new_link: str, orig_title: str = "") -> Tuple[bool, str]:
     """
     Dán tiêu đề mới và đường link mới của bài báo vào file .txt ban đầu đã được lấy.
-    Ghi rõ tiêu đề mới và link báo mới để tránh bị nhầm lẫn với link/tiêu đề cũ.
+    Tự động xóa tiêu đề cũ trong file để tránh bị nhầm lẫn giữa tiêu đề cũ và mới.
     """
     if not file_path or not os.path.exists(file_path):
         return False, f"Đường dẫn file không tồn tại: {file_path}"
@@ -230,9 +230,35 @@ def write_result_to_source_file(file_path: str, new_title: str, new_link: str) -
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
 
-        # Làm sạch khối kết quả cũ nếu đã có để tránh trùng lặp khi chạy lại
+        # 1. Làm sạch khối kết quả cũ nếu đã có để tránh trùng lặp khi chạy lại
         block_pattern = re.compile(r'\n*-{10,}\s*\[KẾT QUẢ XÀO BÀI MỚI\].*?-{10,}', re.S)
         content_clean = block_pattern.sub('', content).strip()
+
+        # 2. Xóa tiêu đề cũ trong file .txt để tránh nhầm lẫn
+        lines = content_clean.splitlines()
+        new_lines = []
+        orig_clean = orig_title.strip().lower() if orig_title else ""
+
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                new_lines.append("")
+                continue
+
+            # Xóa các dòng có tiền tố tiêu đề (Tiêu đề, Title, Tiêu đề cũ, Tiêu đề gốc, v.v.)
+            if re.match(r'^(tiêu\s*đề(\s*gốc|\s*cũ|\s*bài\s*viết)?|title|original\s*title)\s*:', stripped, re.I):
+                continue
+
+            # Xóa dòng nếu trùng khớp với tiêu đề bài báo gốc (orig_title)
+            if orig_clean and len(orig_clean) >= 5:
+                line_lower = stripped.lower()
+                if line_lower == orig_clean or orig_clean in line_lower:
+                    continue
+
+            new_lines.append(line)
+
+        content_clean = "\n".join(new_lines).strip()
+        content_clean = re.sub(r'\n{3,}', '\n\n', content_clean)
 
         clean_title = clean_mojibake_and_typography(new_title)
         now_str = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -690,7 +716,7 @@ class ArticleWorker:
 
                 # Cập nhật tiêu đề mới và đường link mới vào đúng vị trí file .txt ban đầu
                 if item.source_file and os.path.exists(item.source_file):
-                    w_ok, w_err = write_result_to_source_file(item.source_file, title, art_link)
+                    w_ok, w_err = write_result_to_source_file(item.source_file, title, art_link, orig_title=item.orig_title)
                     if w_ok:
                         folder_name = os.path.basename(os.path.dirname(item.source_file))
                         file_name = os.path.basename(item.source_file)
