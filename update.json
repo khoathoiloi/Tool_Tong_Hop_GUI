@@ -6,8 +6,8 @@
   "release_notes": "Bản cập nhật v2.7.5: Khắc phục triệt để lỗi font tiêu đề (mojibake Valentineâs -> Valentine's), tối ưu chèn ảnh ngẫu nhiên ở giữa thân bài viết, và tự động xóa tiêu đề cũ trong file txt nguồn tránh nhầm lẫn.",
   "package_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.5/MasterToolHub_v2.7.5.zip",
   "download_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.5/MasterToolHub_v2.7.5.zip",
-  "package_sha256": "9e2e33ae2d552b649f0b314db1a7db48a983f08673a0123906b9744bf0a0e444",
-  "sha256": "9e2e33ae2d552b649f0b314db1a7db48a983f08673a0123906b9744bf0a0e444",
+  "package_sha256": "684a78d60a5ede6a7c0bfcdc4582e8832b98c1297873ed06f2dca9a23512fc03",
+  "sha256": "684a78d60a5ede6a7c0bfcdc4582e8832b98c1297873ed06f2dca9a23512fc03",
   "updater_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.3/Updater.exe",
   "updater_sha256": "6e59ccccca214a7c8f9301e878d90924c96f4ac2360543c98f45712a5a99b788",
   "changelog": [
