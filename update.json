@@ -1,21 +1,21 @@
 {
-  "latest_version": "2.7.3",
-  "version": "2.7.3",
+  "latest_version": "2.7.4",
+  "version": "2.7.4",
   "minimum_supported_version": "1.0.0",
   "release_date": "2026-09-04",
-  "release_notes": "Bản cập nhật v2.7.3: Nâng cấp toàn diện Module Xào Bài Báo - Quét folder lớn, tự động xào & đăng CMS, kiểm tra xác minh web, tự động làm lại bài thiếu không thừa không thiếu, và dán tiêu đề/link mới vào file txt ban đầu.",
-  "package_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.3/MasterToolHub_v2.7.3.zip",
-  "download_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.3/MasterToolHub_v2.7.3.zip",
-  "package_sha256": "aa9626270b2266cc9ed95366a994f13352c260530984cfd401ef72944f95e9ea",
-  "sha256": "aa9626270b2266cc9ed95366a994f13352c260530984cfd401ef72944f95e9ea",
+  "release_notes": "Bản cập nhật v2.7.4: Bổ sung tự động chèn ảnh vào bài viết, gán thumbnail bài viết lên CMS, tối ưu độ dài slug từ 42-50 ký tự chuẩn SEO, và thêm tính năng Lấy Model tự động cho 9Router.",
+  "package_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.4/MasterToolHub_v2.7.4.zip",
+  "download_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.4/MasterToolHub_v2.7.4.zip",
+  "package_sha256": "f6264bde5ffe013387e03f119c7e1b2b243dae50305ea0296bcccb7dc736c48a",
+  "sha256": "f6264bde5ffe013387e03f119c7e1b2b243dae50305ea0296bcccb7dc736c48a",
   "updater_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.3/Updater.exe",
   "updater_sha256": "6e59ccccca214a7c8f9301e878d90924c96f4ac2360543c98f45712a5a99b788",
   "changelog": [
-    "Xào Bài Báo: Quét đệ quy folder lớn, trích xuất chuẩn 100% link bài báo từ các file txt con",
-    "Tự động xào bài qua AI và đăng bài lên CMS, bóc tách đầy đủ ảnh và video embed",
-    "Kiểm tra xác minh bài mới trực tiếp trên Web (HTTP 200, phát hiện chuyển hướng trang chủ)",
-    "Tự động kiểm duyệt số lượng và làm lại các bài thiếu, đảm bảo chuẩn 100% không thiếu không thừa",
-    "Tự động dán Tiêu đề mới & Link báo mới vào đúng file .txt ban đầu kèm nhãn phân biệt rõ ràng"
+    "Tự động phân bổ đều các hình ảnh minh họa từ bài báo gốc xen kẽ giữa các đoạn văn",
+    "Tự động gán ảnh bìa Thumbnail cho bài viết khi xuất bản lên CMS",
+    "Tối ưu độ dài slug từ 42 đến 50 ký tự chuẩn SEO, cắt sạch sẽ theo ranh giới từ",
+    "Bổ sung nút 🔄 Lấy Model và nút Local cho 9Router, hỗ trợ cổng 20128",
+    "Nâng cấp độ ổn định kết nối Gemini API và CMS publishing"
   ],
   "mandatory": false,
   "min_updater_version": "1.0.0"
