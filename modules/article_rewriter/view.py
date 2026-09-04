@@ -5,6 +5,8 @@ Giao diện người dùng Tab Xào Bài Báo (AI Article Rewriter & CDP CMS Pub
 Chuẩn Dark Theme Catppuccin Macchiato đồng bộ với MasterToolHub.
 """
 import os
+import re
+import webbrowser
 import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
@@ -67,6 +69,11 @@ class ArticleRewriterView(ttk.Frame):
         self.v_stat_success = tk.StringVar(value="0")
         self.v_stat_failed = tk.StringVar(value="0")
 
+        # Lưu trữ nội dung/link đầy đủ của hàng đợi (tránh bị cắt ngắn hiển thị)
+        self.queue_items_data: Dict[str, str] = {}
+        # Ánh xạ từ URL gốc -> Đường dẫn file .txt ban đầu
+        self.source_file_map: Dict[str, str] = {}
+
     def _build_ui(self):
         # Main container with 2 columns
         self.grid_columnconfigure(0, weight=3) # Main working area
@@ -113,6 +120,21 @@ class ArticleRewriterView(ttk.Frame):
 
         tk.Label(input_header, text="📝 Nhập Nội Dung Bài Báo (Cách nhau bằng dòng '---' nếu nhiều bài):", font=("Segoe UI", 10, "bold"), bg=THEME["card"], fg=THEME["fg_text"]).pack(side=tk.LEFT)
 
+        btn_scan_folder = tk.Button(
+            input_header,
+            text="📁 Quét Thư Mục Link Báo",
+            font=("Segoe UI", 9, "bold"),
+            bg="#f9e2af",
+            fg="#1e1e2e",
+            activebackground="#fab387",
+            relief="flat",
+            cursor="hand2",
+            padx=8,
+            pady=2,
+            command=self._on_scan_folder
+        )
+        btn_scan_folder.pack(side=tk.RIGHT, padx=4)
+
         btn_load_file = tk.Button(input_header, text="📂 Chọn File .txt/.docx", font=("Segoe UI", 9), bg=THEME["input"], fg=THEME["fg_text"], activebackground=THEME["accent"], relief="flat", cursor="hand2", padx=8, pady=2, command=self._on_choose_file)
         btn_load_file.pack(side=tk.RIGHT, padx=4)
 
@@ -141,14 +163,16 @@ class ArticleRewriterView(ttk.Frame):
         self.tree.heading("id", text="#")
         self.tree.heading("status", text="Trạng Thái")
         self.tree.heading("title", text="Tiêu Đề Mới")
-        self.tree.heading("result", text="Kết Quả / ID")
-        self.tree.heading("error", text="Chi Tiết / Lỗi")
+        self.tree.heading("result", text="Link Bài Mới (Web)")
+        self.tree.heading("error", text="Kiểm Tra Web / Chi Tiết")
 
-        self.tree.column("id", width=40, anchor="center")
-        self.tree.column("status", width=90, anchor="center")
-        self.tree.column("title", width=220)
-        self.tree.column("result", width=90, anchor="center")
-        self.tree.column("error", width=180)
+        self.tree.column("id", width=45, anchor="center")
+        self.tree.column("status", width=95, anchor="center")
+        self.tree.column("title", width=240, anchor="w")
+        self.tree.column("result", width=220, anchor="w")
+        self.tree.column("error", width=220, anchor="w")
+
+        self.tree.bind("<Double-1>", self._on_tree_double_click)
 
         tree_scroll = ttk.Scrollbar(queue_card, orient=tk.VERTICAL, command=self.tree.yview)
         self.tree.configure(yscrollcommand=tree_scroll.set)
@@ -219,6 +243,21 @@ class ArticleRewriterView(ttk.Frame):
             command=self._on_retry_failed
         )
         self.btn_retry.pack(side=tk.LEFT, padx=(0, 6))
+
+        self.btn_sync_txt = tk.Button(
+            action_bar,
+            text="📝 Dán Vào File .txt",
+            font=("Segoe UI", 9),
+            bg=THEME["input"],
+            fg=THEME["fg_text"],
+            activebackground=THEME["border"],
+            relief="flat",
+            cursor="hand2",
+            padx=10,
+            pady=6,
+            command=self._on_sync_txt_files
+        )
+        self.btn_sync_txt.pack(side=tk.LEFT, padx=(0, 6))
 
         self.btn_stop = tk.Button(
             action_bar,
@@ -605,32 +644,140 @@ class ArticleRewriterView(ttk.Frame):
         except Exception as e:
             self.logger.error(f"Lỗi đọc file: {e}")
 
+    def _on_scan_folder(self):
+        """Quét 1 folder lớn chứa các folder con có file .txt để lấy chuẩn toàn bộ link báo"""
+        folder_selected = filedialog.askdirectory(
+            title="Chọn Thư Mục Lớn Chứa Các Thư Mục Con (Có File .txt)"
+        )
+        if not folder_selected:
+            return
+
+        self.logger.info(f"Đang quét toàn bộ các thư mục con trong: {folder_selected}...")
+
+        found_links = []
+        scanned_folders = set()
+        url_pattern = re.compile(r'https?://[^\s<>"\'\,;]+')
+
+        self.source_file_map.clear()
+
+        # Quét đệ quy toàn bộ thư mục và thư mục con
+        for root, dirs, files in os.walk(folder_selected):
+            txt_files = [f for f in files if f.lower().endswith(".txt")]
+            if not txt_files:
+                continue
+            scanned_folders.add(root)
+
+            # Ưu tiên các file chứa link
+            priority = ['link-da-dang.txt', 'link.txt', 'links.txt', 'url.txt', 'urls.txt']
+            txt_files.sort(key=lambda fn: priority.index(fn.lower()) if fn.lower() in priority else 99)
+
+            folder_links = []
+            for fn in txt_files:
+                file_path = os.path.join(root, fn)
+                try:
+                    with open(file_path, "r", encoding="utf-8", errors="ignore") as fp:
+                        content = fp.read()
+
+                    lines = [ln.strip() for ln in content.splitlines() if ln.strip()]
+                    # 1. Tìm các dòng có "link đã đăng:", "link:", "url:"
+                    for line in lines:
+                        if re.match(r'^(link\s*(đã\s*đăng)?|url)\s*:', line, re.I):
+                            parts = line.split(":", 1)
+                            if len(parts) > 1:
+                                matches = url_pattern.findall(parts[1].strip())
+                                for u in matches:
+                                    u_clean = u.rstrip("./")
+                                    if u_clean and u_clean not in folder_links:
+                                        folder_links.append(u_clean)
+                                        self.source_file_map[u_clean] = file_path
+
+                    # 2. Nếu file chưa có link từ tiền tố, tìm link tổng quát (bỏ qua youtube/facebook nếu có)
+                    if not folder_links:
+                        for line in lines:
+                            matches = url_pattern.findall(line)
+                            for u in matches:
+                                u_clean = u.rstrip("./")
+                                if any(k in u_clean.lower() for k in ['youtube.com', 'youtu.be', 'facebook.com']):
+                                    continue
+                                if u_clean and u_clean not in folder_links:
+                                    folder_links.append(u_clean)
+                                    self.source_file_map[u_clean] = file_path
+                except Exception:
+                    pass
+
+            for lk in folder_links:
+                if lk not in found_links:
+                    found_links.append(lk)
+
+        if not found_links:
+            self.logger.warning("Không tìm thấy đường link bài báo nào trong các file .txt!")
+            messagebox.showwarning("Thông Báo", "Không tìm thấy đường link bài báo hợp lệ nào trong các thư mục con!")
+            return
+
+        # Điền các link tìm được vào ô txt_input (mỗi dòng 1 link)
+        self.txt_input.delete("1.0", tk.END)
+        self.txt_input.insert("1.0", "\n".join(found_links))
+
+        msg = f"Đã quét xong {len(scanned_folders)} thư mục con. Tìm thấy chuẩn xác {len(found_links)} đường link báo!"
+        self.logger.success(f"✅ {msg}")
+        messagebox.showinfo(
+            "Quét Link Thành Công",
+            f"✓ Đã quét {len(scanned_folders)} thư mục con.\n"
+            f"✓ Tìm thấy chuẩn xác: {len(found_links)} đường link bài báo.\n\n"
+            "Toàn bộ đường link đã được điền đầy đủ vào ô nội dung!"
+        )
+
+    def _on_tree_double_click(self, event):
+        """Mở link bài báo mới trên trình duyệt khi nhấp đúp vào dòng tương ứng"""
+        item_id = self.tree.identify_row(event.y)
+        if item_id:
+            vals = self.tree.item(item_id).get("values", [])
+            if len(vals) > 3:
+                url = str(vals[3]).strip()
+                if url.startswith("http://") or url.startswith("https://"):
+                    webbrowser.open(url)
+                    self.logger.info(f"Đang mở bài viết trên trình duyệt: {url}")
+
     def _on_add_to_queue(self):
         raw_text = self.txt_input.get("1.0", tk.END).strip()
         if not raw_text:
             messagebox.showwarning("Cảnh Báo", "Vui lòng nhập hoặc nạp nội dung bài viết trước!")
             return
 
-        articles = [a.strip() for a in raw_text.split("---") if a.strip()]
+        if "---" in raw_text:
+            articles = [a.strip() for a in raw_text.split("---") if a.strip()]
+        else:
+            lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
+            # Nếu người dùng nạp danh sách đường link (mỗi dòng 1 link http/https)
+            if lines and all(line.startswith("http://") or line.startswith("https://") for line in lines):
+                articles = lines
+            else:
+                articles = [raw_text]
+
         if not articles:
             articles = [raw_text]
 
         existing_count = len(self.tree.get_children())
         for i, art in enumerate(articles):
             item_id = existing_count + i + 1
-            preview_title = art.split("\n")[0][:40] + ("..." if len(art.split("\n")[0]) > 40 else "")
-            self.tree.insert("", "end", iid=str(item_id), values=(item_id, "Pending", preview_title, "-", "-"))
+            item_id_str = str(item_id)
+            # Lưu trữ toàn bộ link/nội dung gốc vào dict để không bị mất hay cắt ngắn
+            self.queue_items_data[item_id_str] = art
+
+            preview_title = art.split("\n")[0][:60] + ("..." if len(art.split("\n")[0]) > 60 else "")
+            self.tree.insert("", "end", iid=item_id_str, values=(item_id, "Pending", preview_title, "-", "-"))
 
         self.txt_input.delete("1.0", tk.END)
-        self.logger.info(f"Đã thêm {len(articles)} bài viết vào hàng đợi!")
+        self.logger.info(f"Đã thêm chuẩn xác {len(articles)} bài viết/link vào hàng đợi!")
         self._update_queue_stats()
 
     def _update_queue_stats(self):
         children = self.tree.get_children()
         total = len(children)
-        success = sum(1 for c in children if self.tree.item(c)["values"][1] == "Success")
-        failed = sum(1 for c in children if self.tree.item(c)["values"][1] == "Failed")
-        self.lbl_stats.configure(text=f"Tổng: {total} | Thành công: {success} | Lỗi: {failed}")
+        success = sum(1 for c in children if str(self.tree.item(c)["values"][1]) == "Success")
+        failed = sum(1 for c in children if str(self.tree.item(c)["values"][1]) in ("Failed", "Cancelled"))
+        pending = total - success - failed
+        self.lbl_stats.configure(text=f"Tổng: {total} | Đã lên Web: {success} | Lỗi/Chưa lên: {failed} | Chờ: {pending}")
 
     def _on_clear_queue(self):
         if self.worker and self.worker.is_running:
@@ -638,6 +785,7 @@ class ArticleRewriterView(ttk.Frame):
             return
         for item in self.tree.get_children():
             self.tree.delete(item)
+        self.queue_items_data.clear()
         self.logger.info("Đã làm sạch hàng đợi bài viết.")
         self._update_queue_stats()
 
@@ -804,11 +952,17 @@ class ArticleRewriterView(ttk.Frame):
             )
             return
 
-        # Lấy danh sách nội dung từ Treeview
+        # Lấy danh sách nội dung/link đầy đủ từ Treeview
         contents = []
+        source_files = {}
         for c in children:
-            item_vals = self.tree.item(c)["values"]
-            contents.append(item_vals[2])
+            c_str = str(c)
+            val = self.queue_items_data.get(c_str)
+            if not val:
+                val = self.tree.item(c)["values"][2]
+            contents.append(val)
+            if val in self.source_file_map:
+                source_files[val] = self.source_file_map[val]
 
         self.btn_rewrite_only.configure(state=tk.DISABLED)
         self.btn_rewrite_and_post.configure(state=tk.DISABLED)
@@ -821,21 +975,22 @@ class ArticleRewriterView(ttk.Frame):
             on_item_updated=self._on_worker_item_updated,
             on_finished=self._on_worker_finished
         )
-        self.worker.set_items(contents, force_post=self.v_force_post.get())
+        self.worker.set_items(contents, force_post=self.v_force_post.get(), source_files=source_files)
         self.worker.start(mode=mode)
 
     def _on_worker_item_updated(self, item: ArticleItem):
         def _update_ui():
             item_id_str = str(item.id)
             if self.tree.exists(item_id_str):
+                title_disp = item.title or getattr(item, "orig_title", "") or (item.content[:50] + "..." if len(item.content) > 50 else item.content)
                 self.tree.item(
                     item_id_str,
                     values=(
                         item.id,
                         item.status,
-                        item.title or item.content[:40],
+                        title_disp,
                         item.result_id or "-",
-                        item.error or "-"
+                        item.error or ("✅ Đã có trên Web (200 OK)" if getattr(item, "is_verified", False) else "-")
                     )
                 )
             self._update_queue_stats()
@@ -860,8 +1015,54 @@ class ArticleRewriterView(ttk.Frame):
             self.btn_rewrite_and_post.configure(state=tk.DISABLED)
             self.btn_stop.configure(state=tk.NORMAL)
             self.worker.retry_failed(mode="rewrite_and_post")
+        elif not self.worker:
+            messagebox.showinfo("Thông Báo", "Vui lòng bấm '🚀 Xào & Đăng Tự Động' để bắt đầu tiến trình trước!")
         else:
-            messagebox.showinfo("Thông Báo", "Không có bài nào bị lỗi hoặc tiến trình đang chạy!")
+            messagebox.showinfo("Thông Báo", "Tiến trình đang chạy, vui lòng đợi hoàn tất hoặc bấm Dừng trước!")
+
+    def _on_sync_txt_files(self):
+        """Dán tiêu đề mới và link báo mới vào các file .txt ban đầu"""
+        if not self.worker or not self.worker.items:
+            messagebox.showinfo("Thông Báo", "Chưa có dữ liệu bài viết nào trong phiên làm việc hiện tại!")
+            return
+
+        success_items = [it for it in self.worker.items if it.status == "Success" and it.result_id]
+        if not success_items:
+            messagebox.showwarning("Cảnh Báo", "Chưa có bài viết nào được xào và xuất bản thành công trên Web!")
+            return
+
+        from .worker import write_result_to_source_file
+
+        # Nếu chưa có ánh xạ file nguồn (do dán link trực tiếp thay vì quét folder)
+        missing_sf = [it for it in success_items if not it.source_file or not os.path.exists(it.source_file)]
+        if missing_sf:
+            folder = filedialog.askdirectory(title="Chọn Thư Mục Lớn Chứa Các File .txt Cần Cập Nhật")
+            if folder:
+                for root, dirs, files in os.walk(folder):
+                    for fn in files:
+                        if fn.lower().endswith(".txt"):
+                            fp = os.path.join(root, fn)
+                            try:
+                                with open(fp, "r", encoding="utf-8", errors="ignore") as f:
+                                    txt_data = f.read()
+                                for it in missing_sf:
+                                    if it.content in txt_data:
+                                        it.source_file = fp
+                            except Exception:
+                                pass
+
+        count_updated = 0
+        for it in success_items:
+            if it.source_file and os.path.exists(it.source_file):
+                ok, err = write_result_to_source_file(it.source_file, it.title, it.result_id)
+                if ok:
+                    count_updated += 1
+
+        self.logger.success(f"✅ Đã dán tiêu đề mới & link mới vào {count_updated}/{len(success_items)} file .txt ban đầu!")
+        messagebox.showinfo(
+            "Cập Nhật Hoàn Tất",
+            f"✓ Đã dán tiêu đề mới và link báo mới vào {count_updated} file .txt ban đầu chuẩn xác!\n\n(Đã ghi rõ nhãn [KẾT QUẢ XÀO BÀI MỚI], Tiêu đề mới, Link báo mới để tránh nhầm lẫn)."
+        )
 
     def _safe_log(self, msg: str, level: str = "INFO"):
         lvl = level.upper()
