@@ -245,8 +245,8 @@ def write_result_to_source_file(file_path: str, new_title: str, new_link: str, o
                 new_lines.append("")
                 continue
 
-            # Xóa các dòng có tiền tố tiêu đề (Tiêu đề, Title, Tiêu đề cũ, Tiêu đề gốc, v.v.)
-            if re.match(r'^(tiêu\s*đề(\s*gốc|\s*cũ|\s*bài\s*viết)?|title|original\s*title)\s*:', stripped, re.I):
+            # Xóa các dòng có tiền tố tiêu đề (Tiêu đề, Tiêu đề đã đăng, Title, Tiêu đề cũ, Tiêu đề gốc, v.v.)
+            if re.match(r'^(tiêu\s*đề(\s*(đã\s*đăng|gốc|cũ|bài\s*viết))?|title|original\s*title)\s*:', stripped, re.I):
                 continue
 
             # Xóa dòng nếu trùng khớp với tiêu đề bài báo gốc (orig_title)
