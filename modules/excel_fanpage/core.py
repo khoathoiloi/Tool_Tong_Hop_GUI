@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 import os
 import re
 from pathlib import Path
@@ -146,7 +146,8 @@ def _process_single_folder(folder: Path, domain_filter: str = '', hashtag: str =
         'first_comment': first_comment
     }
 
-def scan_and_prepare_data(kho_path_str, domain_filter='', hashtag='', exclude_folders=None):
+def scan_and_prepare_data(kho_path_str, domain_filter='', hashtag='', exclude_folders=None, shuffle_folders=False):
+    import random
     kho_path = Path(kho_path_str)
     if not kho_path.exists() or not kho_path.is_dir():
         return []
@@ -164,12 +165,20 @@ def scan_and_prepare_data(kho_path_str, domain_filter='', hashtag='', exclude_fo
             valid_items.append(item_self)
 
     # 2. Quét các subfolder
-    subfolders = sorted([f for f in kho_path.iterdir() if f.is_dir()])
+    subfolders = [f for f in kho_path.iterdir() if f.is_dir()]
+    if shuffle_folders:
+        random.shuffle(subfolders)
+    else:
+        subfolders = sorted(subfolders)
+
     for folder in subfolders:
         if str(folder.resolve()) in exclude_set:
             continue
         item = _process_single_folder(folder, domain_filter, hashtag)
         if item and item['folder_path'] not in exclude_set:
             valid_items.append(item)
+
+    if shuffle_folders and valid_items:
+        random.shuffle(valid_items)
 
     return valid_items

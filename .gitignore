@@ -11,3 +11,6 @@ test*.py
 tmp*
 models/
 *.exe
+logs/
+bin/
+update_state.json

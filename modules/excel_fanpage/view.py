@@ -110,7 +110,10 @@ class ExcelFanpageView(ttk.Frame):
         self.spin_ratio.pack(side=tk.LEFT, padx=(0, 15))
 
         self.chk_avoid_dup_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(r2, text="Tránh lấy trùng video đã đăng", variable=self.chk_avoid_dup_var, bg="#24273a", fg="#cdd6f4", selectcolor="#313244", activebackground="#24273a", activeforeground="#a6e3a1").pack(side=tk.LEFT)
+        tk.Checkbutton(r2, text="Tránh lấy trùng video đã đăng", variable=self.chk_avoid_dup_var, bg="#24273a", fg="#cdd6f4", selectcolor="#313244", activebackground="#24273a", activeforeground="#a6e3a1").pack(side=tk.LEFT, padx=(0, 15))
+
+        self.chk_shuffle_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(r2, text="🔀 Xáo trộn folder video (Random)", variable=self.chk_shuffle_var, font=("Segoe UI", 9, "bold"), bg="#24273a", fg="#f9e2af", selectcolor="#313244", activebackground="#24273a", activeforeground="#f9e2af").pack(side=tk.LEFT)
         tk.Button(r2, text="🔄 Reset Bộ Nhớ", font=("Segoe UI", 8), bg="#585b70", fg="#f9e2af", relief="flat", padx=8, pady=1, command=self._reset_history).pack(side=tk.RIGHT)
 
         # Domain & Hashtag
@@ -272,7 +275,8 @@ class ExcelFanpageView(ttk.Frame):
             "excel_type": self.excel_type_var.get(),
             "comment_1": self.entry_comment1.get().strip(),
             "auto_shorten": self.chk_auto_shorten_var.get(),
-            "shorten_domain": self.cbo_shorten_domain.get().strip()
+            "shorten_domain": self.cbo_shorten_domain.get().strip(),
+            "shuffle_folders": self.chk_shuffle_var.get()
         })
 
     def _load_config(self):
@@ -293,6 +297,8 @@ class ExcelFanpageView(ttk.Frame):
             if "auto_shorten" in data: self.chk_auto_shorten_var.set(bool(data.get("auto_shorten")))
             if data.get("shorten_domain") and data.get("shorten_domain") in self.domains_list:
                 self.cbo_shorten_domain.set(data.get("shorten_domain"))
+            if "shuffle_folders" in data:
+                self.chk_shuffle_var.set(bool(data.get("shuffle_folders")))
 
     def _check_data(self):
         self.logger.clear()
@@ -310,9 +316,12 @@ class ExcelFanpageView(ttk.Frame):
             self.logger.error("Kho video không hợp lệ: " + str(kho))
             return
 
+        shuffle = self.chk_shuffle_var.get()
         exclude = self.cfg_mgr.get_processed_folders() if self.chk_avoid_dup_var.get() else set()
-        items = scan_and_prepare_data(kho, self.entry_domain.get().strip(), self.entry_tag.get().strip(), exclude)
+        items = scan_and_prepare_data(kho, self.entry_domain.get().strip(), self.entry_tag.get().strip(), exclude, shuffle_folders=shuffle)
         self.logger.info(f"Số video khả dụng trong kho: {len(items)}")
+        if shuffle:
+            self.logger.highlight("🔀 Đang BẬT chế độ xáo trộn ngẫu nhiên thứ tự folder video.")
         if exclude:
             self.logger.info(f"Số folder đã được đánh dấu bỏ qua (đã lấy trước đó): {len(exclude)}")
 
@@ -323,8 +332,24 @@ class ExcelFanpageView(ttk.Frame):
         needed_videos = (len(pages) + ratio - 1) // ratio
         self.logger.info(f"Cần {needed_videos} video cho {len(pages)} Page (Tỉ lệ 1 video / {ratio} Page).")
         
+        domain_filter = self.entry_domain.get().strip()
         raw_links_count = sum(1 for item in items[:needed_videos] if item.get("raw_link"))
-        self.logger.info(f"Số video có sẵn link gốc cần rút gọn: {raw_links_count} / {min(len(items), needed_videos)}")
+        self.logger.info(f"Số video có sẵn link gốc: {raw_links_count} / {min(len(items), needed_videos)}")
+
+        if domain_filter:
+            no_matching_items = [it for it in items[:needed_videos] if not it.get("raw_link")]
+            if no_matching_items:
+                self.logger.warning(f"⚠️ CẢNH BÁO: Phát hiện {len(no_matching_items)}/{min(len(items), needed_videos)} video có dòng bình luận KHÔNG CÓ đường link giống với lọc domain gốc '{domain_filter}'!")
+                for m_it in no_matching_items[:5]:
+                    self.logger.warning(f"   ↳ Thiếu link khớp domain tại folder: {m_it['folder']}")
+                if len(no_matching_items) > 5:
+                    self.logger.warning(f"   ↳ ... và {len(no_matching_items) - 5} folder khác.")
+            else:
+                self.logger.success(f"✅ 100% video đều có đường link khớp với lọc domain gốc '{domain_filter}'.")
+        else:
+            no_link_items = [it for it in items[:needed_videos] if not it.get("raw_link")]
+            if no_link_items:
+                self.logger.warning(f"⚠️ CẢNH BÁO: Phát hiện {len(no_link_items)}/{min(len(items), needed_videos)} video có dòng bình luận KHÔNG CÓ đường link bài viết nào!")
 
         if self.chk_auto_shorten_var.get():
             self.logger.highlight(f"⚡ Đang BẬT chế độ Tự động rút gọn link ShiftLink (Tên miền: {self.cbo_shorten_domain.get()})")
@@ -364,6 +389,7 @@ class ExcelFanpageView(ttk.Frame):
         shorten_domain = self.cbo_shorten_domain.get().strip() or "nextpart2.online"
         show_chrome = self.chk_show_chrome_var.get()
         comment1_text = self.entry_comment1.get().strip() or DEFAULT_COMMENT_1
+        shuffle = self.chk_shuffle_var.get()
 
         self.btn_start.config(state=tk.DISABLED)
         self.btn_check.config(state=tk.DISABLED)
@@ -372,14 +398,32 @@ class ExcelFanpageView(ttk.Frame):
         def _worker():
             try:
                 exclude = self.cfg_mgr.get_processed_folders() if self.chk_avoid_dup_var.get() else set()
-                items = scan_and_prepare_data(kho, self.entry_domain.get().strip(), self.entry_tag.get().strip(), exclude)
+                items = scan_and_prepare_data(kho, self.entry_domain.get().strip(), self.entry_tag.get().strip(), exclude, shuffle_folders=shuffle)
                 
                 if not items:
                     self.logger.error("Không tìm thấy video hợp lệ nào trong kho!")
                     return
 
+                if shuffle:
+                    self.logger.highlight("🔀 Đã xáo trộn ngẫu nhiên thứ tự folder video.")
+
                 needed_videos = (len(pages) + ratio - 1) // ratio
                 selected_items = items[:needed_videos]
+
+                domain_filter = self.entry_domain.get().strip()
+                no_matching_items = []
+                if domain_filter:
+                    no_matching_items = [it for it in selected_items if not it.get("raw_link")]
+                    if no_matching_items:
+                        self.logger.warning(f"⚠️ CẢNH BÁO: Phát hiện {len(no_matching_items)}/{len(selected_items)} video có dòng bình luận KHÔNG CÓ đường link giống với lọc domain gốc '{domain_filter}'!")
+                        for it in no_matching_items[:5]:
+                            self.logger.warning(f"   ↳ Thiếu link khớp domain: {it['folder']}")
+                        if len(no_matching_items) > 5:
+                            self.logger.warning(f"   ↳ ... và {len(no_matching_items) - 5} folder khác.")
+                else:
+                    no_matching_items = [it for it in selected_items if not it.get("raw_link")]
+                    if no_matching_items:
+                        self.logger.warning(f"⚠️ CẢNH BÁO: Phát hiện {len(no_matching_items)}/{len(selected_items)} video có dòng bình luận KHÔNG CÓ đường link bài viết nào!")
 
                 # ⚡ NẾU BẬT TỰ ĐỘNG RÚT GỌN LINK
                 shortened_applied = 0
@@ -474,7 +518,16 @@ class ExcelFanpageView(ttk.Frame):
 
                 summary_msg += f"\n\n💬 Bình luận: Đã ghép nội dung + link vào 'Bình luận 1', để trống 'Bình luận 2'."
 
-                messagebox.showinfo("Thành công", summary_msg)
+                if domain_filter and no_matching_items:
+                    summary_msg += f"\n\n⚠️ CẢNH BÁO: Có {len(no_matching_items)}/{len(selected_items)} video có dòng bình luận KHÔNG CÓ đường link giống với lọc domain gốc '{domain_filter}'!"
+                elif not domain_filter and no_matching_items:
+                    summary_msg += f"\n\n⚠️ CẢNH BÁO: Có {len(no_matching_items)}/{len(selected_items)} video dòng bình luận KHÔNG CÓ đường link bài viết nào!"
+
+                if no_matching_items:
+                    self.logger.warning(f"⚠️ Chú ý: File Excel đã xuất nhưng có {len(no_matching_items)} video dòng bình luận không có đường link giống với domain '{domain_filter or 'gốc'}'!")
+                    messagebox.showwarning("Hoàn thành (Có cảnh báo)", summary_msg)
+                else:
+                    messagebox.showinfo("Thành công", summary_msg)
             except Exception as e:
                 self.logger.error(f"Lỗi trong quá trình xử lý: {e}")
                 messagebox.showerror("Lỗi", f"Lỗi: {e}")

@@ -1,9 +1,9 @@
 {
-  "latest_version": "2.7.5",
-  "version": "2.7.5",
+  "latest_version": "2.7.6",
+  "version": "2.7.6",
   "minimum_supported_version": "1.0.0",
-  "release_date": "2026-09-04",
-  "release_notes": "Bản cập nhật v2.7.5: Khắc phục triệt để lỗi font tiêu đề (mojibake Valentineâs -> Valentine's), tối ưu chèn ảnh ngẫu nhiên ở giữa thân bài viết, và tự động xóa tiêu đề cũ trong file txt nguồn tránh nhầm lẫn.",
+  "release_date": "2026-09-05",
+  "release_notes": "Bản cập nhật v2.7.6: Thêm tính năng xáo trộn ngẫu nhiên folder video (Random) khi tạo file Excel Fanpage, và bổ sung cảnh báo trực tiếp khi dòng bình luận không có đường link khớp với lọc domain gốc.",
   "package_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.5/MasterToolHub_v2.7.5.zip",
   "download_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.5/MasterToolHub_v2.7.5.zip",
   "package_sha256": "684a78d60a5ede6a7c0bfcdc4582e8832b98c1297873ed06f2dca9a23512fc03",
@@ -11,11 +11,9 @@
   "updater_url": "https://github.com/khoathoiloi/Tool_Tong_Hop_GUI/releases/download/v2.7.3/Updater.exe",
   "updater_sha256": "6e59ccccca214a7c8f9301e878d90924c96f4ac2360543c98f45712a5a99b788",
   "changelog": [
-    "Khắc phục triệt để lỗi font tiêu đề và nội dung (mojibake dạng Valentineâs, â€™, ký tự điều khiển)",
-    "Chuẩn hóa dấu nháy đơn, nháy kép về chuẩn ASCII tương thích 100% với CMS và MySQL",
-    "Tối ưu phân bổ hình ảnh: chèn ngẫu nhiên ở giữa thân bài viết để lôi kéo người xem cuộn trang",
-    "Tự động xóa tiêu đề cũ trong file .txt ban đầu khi dán tiêu đề mới & link mới để tránh nhầm lẫn",
-    "Giải mã trang web bài báo nguồn trực tiếp bằng UTF-8 tránh lỗi fallback Latin-1"
+    "Thêm tùy chọn xáo trộn ngẫu nhiên folder video (Random) khi tạo file Excel Fanpage Reels",
+    "Bổ sung cảnh báo chi tiết khi dòng bình luận không có link khớp với lọc domain gốc được người dùng nhập",
+    "Tối ưu tự động nhận diện bộ giải mã FFmpeg và thư viện tính toán GPU NVIDIA CUDA 12 cho Faster-Whisper"
   ],
   "mandatory": false,
   "min_updater_version": "1.0.0"
