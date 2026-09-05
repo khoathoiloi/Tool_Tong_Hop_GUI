@@ -421,6 +421,7 @@ class AIWhisperSRTView(tk.Frame):
                     with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_audio:
                         tmp_audio_path = Path(tmp_audio.name)
 
+                    try:
                         ffmpeg_exe = self.ffmpeg_bin if (self.ffmpeg_bin and self.ffmpeg_bin != 'ffmpeg' and os.path.exists(self.ffmpeg_bin)) else find_ffmpeg()
                         ok = extract_audio(vpath, tmp_audio_path, ffmpeg_exe, boost_vocals=boost_vocals)
                         if not ok:
